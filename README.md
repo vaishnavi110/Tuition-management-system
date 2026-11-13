@@ -48,12 +48,26 @@ All formal project specifications and guides are organized under the [`/docs`](.
 
 ---
 
-## 🛣️ Development Milestones
+## 🛣️ Development Milestones & Issue Tracker
 
-- [ ] **Milestone 1 (`v0.1-MVP-Core`):** Setup, Role Auth, 1-on-1 Scheduling, Google Meet Flow, Smart Auto-Attendance, and Class Logging. *(Live Client Demo)*
-- [ ] **Milestone 2 (`v1.0-Production-Release`):** Automated Invoicing, Razorpay Gateway, Homework Photo Uploads, and Render Deployment.
+### 🟢 [Milestone 1: `v0.1-MVP-Core` (Client Demo)](https://github.com/vaishnavi110/Tuition-management-system/milestone/1)
+*Target: Working Core Prototype in 7 Days*
+- [ ] [#1 setup: monorepo scaffolding (React + Vite + Express + Prisma)](https://github.com/vaishnavi110/Tuition-management-system/issues/1)
+- [ ] [#2 feat: role-based authentication and dashboard shells (Admin, Teacher, Student)](https://github.com/vaishnavi110/Tuition-management-system/issues/2)
+- [ ] [#3 feat: grade rate cards & student-teacher 1-on-1 class scheduling](https://github.com/vaishnavi110/Tuition-management-system/issues/3)
+- [ ] [#4 feat: google meet join flow & smart auto-attendance engine](https://github.com/vaishnavi110/Tuition-management-system/issues/4)
+- [ ] [#5 feat: post-class logging engine (hours, date, topics) & attendance verification](https://github.com/vaishnavi110/Tuition-management-system/issues/5)
+*(🏁 Live MVP demonstration to client upon completing #5)*
+
+### 🟡 [Milestone 2: `v1.0-Production-Release`](https://github.com/vaishnavi110/Tuition-management-system/milestone/2)
+*Target: Financials, Media & Production Deployment*
+- [ ] [#6 feat: automated monthly fee invoicing & teacher payroll calculation](https://github.com/vaishnavi110/Tuition-management-system/issues/6)
+- [ ] [#7 feat: razorpay payment gateway checkout & instant digital receipts](https://github.com/vaishnavi110/Tuition-management-system/issues/7)
+- [ ] [#8 feat: homework photo uploads & student notebook submissions](https://github.com/vaishnavi110/Tuition-management-system/issues/8)
+- [ ] [#9 deploy: render production deployment & client handover](https://github.com/vaishnavi110/Tuition-management-system/issues/9)
 
 ---
 
 ## 📄 License
 Private & Proprietary — Developed for Academy Management.
+
