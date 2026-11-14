@@ -1,0 +1,144 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  TEACHER
+  STUDENT
+}
+
+enum SessionStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+enum InvoiceStatus {
+  UNPAID
+  PAID
+}
+
+enum HomeworkStatus {
+  PENDING
+  SUBMITTED
+  REVIEWED
+}
+
+model User {
+  id            String          @id @default(uuid())
+  name          String
+  emailOrPhone  String          @unique
+  role          Role
+  passwordHash  String
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  student       StudentProfile?
+  teacher       TeacherProfile?
+}
+
+model Grade {
+  id                 String           @id @default(uuid())
+  name               String           @unique // e.g. "Grade 10", "Grade 12"
+  studentHourlyRate  Float            // e.g. 400.0
+  teacherHourlyRate  Float            // e.g. 250.0
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  students           StudentProfile[]
+}
+
+model StudentProfile {
+  id           String    @id @default(uuid())
+  userId       String    @unique
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gradeId      String
+  grade        Grade     @relation(fields: [gradeId], references: [id])
+  parentPhone  String?
+  address      String?
+
+  sessions     Session[]
+  invoices     Invoice[]
+}
+
+model TeacherProfile {
+  id               String    @id @default(uuid())
+  userId           String    @unique
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  phone            String?
+  defaultMeetLink  String?
+  bio              String?
+
+  sessions         Session[]
+}
+
+model Session {
+  id              String         @id @default(uuid())
+  teacherId       String
+  teacher         TeacherProfile @relation(fields: [teacherId], references: [id])
+  studentId       String
+  student         StudentProfile @relation(fields: [studentId], references: [id])
+  subject         String
+  scheduledStart  DateTime
+  scheduledEnd    DateTime
+  meetLink        String?
+  status          SessionStatus  @default(SCHEDULED)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  classLog        ClassLog?
+  homework        Homework[]
+}
+
+model ClassLog {
+  id               String    @id @default(uuid())
+  sessionId        String    @unique
+  session          Session   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  classDate        DateTime  @default(now())
+  startTime        DateTime
+  endTime          DateTime
+  durationHours    Float     // Calculated decimal hours (e.g. 1.5)
+  topicsCovered    String
+  studentAttended  Boolean   @default(true)
+  autoDetected     Boolean   @default(false)
+  studentJoinedAt  DateTime?
+  createdAt        DateTime  @default(now())
+}
+
+model Invoice {
+  id                 String         @id @default(uuid())
+  studentId          String
+  student            StudentProfile @relation(fields: [studentId], references: [id])
+  month              Int            // 1 - 12
+  year               Int            // e.g. 2026
+  totalHours         Float
+  totalAmount        Float
+  status             InvoiceStatus  @default(UNPAID)
+  paymentRefGpay     String?
+  razorpayOrderId    String?
+  razorpayPaymentId  String?
+  paidAt             DateTime?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+}
+
+model Homework {
+  id                   String         @id @default(uuid())
+  sessionId            String
+  session              Session        @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  title                String
+  description          String?
+  teacherImageUrl      String?        // Photo of questions
+  studentSubmissionUrl String?        // Photo of completed notebook
+  status               HomeworkStatus @default(PENDING)
+  submittedAt          DateTime?
+  reviewedAt           DateTime?
+  createdAt            DateTime       @default(now())
+}
+
