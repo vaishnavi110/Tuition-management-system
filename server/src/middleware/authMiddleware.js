@@ -36,3 +36,4 @@ module.exports = {
   requireRole,
   JWT_SECRET
 };
+
