@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import LoginModal from './components/LoginModal';
 import { 
   GraduationCap, 
   Users, 
@@ -13,17 +15,29 @@ import {
   BookOpen,
   Upload,
   LogOut,
-  Bell
+  Bell,
+  Lock,
+  UserCheck
 } from 'lucide-react';
 
-export default function App() {
-  // Role switcher: 'student' | 'teacher' | 'admin'
-  const [activeRole, setActiveRole] = useState('student');
+function DashboardContent() {
+  const { user, role, logout } = useAuth();
+  const [isLoginOpen, setIsLoginOpen] = useState(false);
+
+  // Active view tab (defaults to logged-in user's role or 'student' for preview)
+  const [activeTab, setActiveTab] = useState(role ? role.toLowerCase() : 'student');
 
   // Interactive mock simulation states
   const [attendanceMarked, setAttendanceMarked] = useState(false);
   const [paymentDone, setPaymentDone] = useState(false);
   const [classLogged, setClassLogged] = useState(false);
+
+  // When user logs in or role changes, update the active tab
+  React.useEffect(() => {
+    if (role) {
+      setActiveTab(role.toLowerCase());
+    }
+  }, [role]);
 
   // Handle Google Meet Link Click Simulation
   const handleJoinClass = () => {
@@ -35,7 +49,7 @@ export default function App() {
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col justify-between selection:bg-indigo-500 selection:text-white">
       
       {/* 🌟 Top Navigation Bar (SaaS Elite Styling) */}
-      <header className="bg-white/80 border-b border-slate-200/80 backdrop-blur-md sticky top-0 z-50 shadow-sm">
+      <header className="bg-white/80 border-b border-slate-200/80 backdrop-blur-md sticky top-0 z-40 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           
           {/* Logo & Platform Name */}
@@ -46,7 +60,7 @@ export default function App() {
             <div>
               <span className="font-extrabold text-lg text-slate-900 tracking-tight">TuitionHub</span>
               <span className="ml-2 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
-                1-on-1 System
+                1-on-1 Portal
               </span>
             </div>
           </div>
@@ -54,9 +68,9 @@ export default function App() {
           {/* Role Navigation Switcher Pills */}
           <div className="flex items-center space-x-1 sm:space-x-2 bg-slate-100 p-1 rounded-xl border border-slate-200/60">
             <button
-              onClick={() => setActiveRole('student')}
+              onClick={() => setActiveTab('student')}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                activeRole === 'student'
+                activeTab === 'student'
                   ? 'bg-white text-indigo-700 shadow-sm'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
@@ -64,9 +78,9 @@ export default function App() {
               👩‍🎓 Student Portal
             </button>
             <button
-              onClick={() => setActiveRole('teacher')}
+              onClick={() => setActiveTab('teacher')}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                activeRole === 'teacher'
+                activeTab === 'teacher'
                   ? 'bg-white text-indigo-700 shadow-sm'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
@@ -74,9 +88,9 @@ export default function App() {
               👨‍🏫 Teacher Portal
             </button>
             <button
-              onClick={() => setActiveRole('admin')}
+              onClick={() => setActiveTab('admin')}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                activeRole === 'admin'
+                activeTab === 'admin'
                   ? 'bg-white text-indigo-700 shadow-sm'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
@@ -85,14 +99,31 @@ export default function App() {
             </button>
           </div>
 
-          {/* Right Action Icons */}
-          <div className="hidden sm:flex items-center space-x-3">
-            <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:text-slate-900 cursor-pointer">
-              <Bell className="w-4 h-4" />
-            </div>
-            <div className="w-8 h-8 rounded-full bg-indigo-600 text-white font-bold text-xs flex items-center justify-center">
-              VN
-            </div>
+          {/* Right Action: User Profile or Login Button */}
+          <div className="flex items-center space-x-3">
+            {user ? (
+              <div className="flex items-center space-x-3">
+                <div className="hidden sm:block text-right">
+                  <div className="text-xs font-bold text-slate-900 leading-tight">{user.name}</div>
+                  <div className="text-[10px] font-semibold text-indigo-600 tracking-wide uppercase">{user.role}</div>
+                </div>
+                <button
+                  onClick={logout}
+                  title="Sign Out"
+                  className="p-2 rounded-xl border border-slate-200 text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setIsLoginOpen(true)}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm shadow-indigo-200 transition-all flex items-center gap-1.5"
+              >
+                <Lock className="w-3.5 h-3.5" />
+                <span>Sign In</span>
+              </button>
+            )}
           </div>
 
         </div>
@@ -102,14 +133,14 @@ export default function App() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full">
 
         {/* 👩‍🎓 1. STUDENT VIEW */}
-        {activeRole === 'student' && (
+        {activeTab === 'student' && (
           <div className="space-y-6 max-w-5xl mx-auto animate-fadeIn">
             
             {/* Header Greeting & Auto-Attendance Badge */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
               <div>
                 <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-                  Welcome back, Aryan Sharma 👋
+                  Welcome back, {user?.role === 'STUDENT' ? user.name : 'Aryan Sharma'} 👋
                 </h2>
                 <p className="text-sm text-slate-500 mt-1">
                   Grade 10 &bull; Mathematics &bull; Rate Card: ₹400/hour
@@ -258,14 +289,14 @@ export default function App() {
         )}
 
         {/* 👨‍🏫 2. TEACHER VIEW */}
-        {activeRole === 'teacher' && (
+        {activeTab === 'teacher' && (
           <div className="space-y-6 max-w-5xl mx-auto animate-fadeIn">
             
             {/* Header Greeting */}
             <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-                  Teacher Portal &bull; Mrs. Sunita Verma
+                  Teacher Portal &bull; {user?.role === 'TEACHER' ? user.name : 'Mrs. Sunita Verma'}
                 </h2>
                 <p className="text-sm text-slate-500 mt-1">
                   Mathematics Department &bull; 8 Assigned 1-on-1 Students
@@ -362,7 +393,7 @@ export default function App() {
         )}
 
         {/* 👑 3. ADMIN VIEW */}
-        {activeRole === 'admin' && (
+        {activeTab === 'admin' && (
           <div className="space-y-6 max-w-5xl mx-auto animate-fadeIn">
             
             {/* Header Greeting */}
@@ -467,6 +498,17 @@ export default function App() {
         </div>
       </footer>
 
+      {/* Login Modal */}
+      <LoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} />
+
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <DashboardContent />
+    </AuthProvider>
   );
 }
