@@ -16,11 +16,12 @@ import {
   BookOpen, 
   Upload, 
   LogOut, 
-  Plus,
-  Trash2,
-  Edit2,
-  AlertCircle,
-  X
+  Plus, 
+  Trash2, 
+  Edit2, 
+  AlertCircle, 
+  X,
+  UserCheck
 } from 'lucide-react';
 
 export default function DashboardPage() {
@@ -37,6 +38,7 @@ export default function DashboardPage() {
   // Data states from API
   const [grades, setGrades] = useState([]);
   const [sessions, setSessions] = useState([]);
+  const [attendanceRecords, setAttendanceRecords] = useState({});
   const [loading, setLoading] = useState(true);
 
   // Modals
@@ -57,10 +59,14 @@ export default function DashboardPage() {
   const [newStudentRate, setNewStudentRate] = useState('');
   const [newTeacherRate, setNewTeacherRate] = useState('');
 
-  // Simulation states
-  const [attendanceMarked, setAttendanceMarked] = useState(false);
-  const [paymentDone, setPaymentDone] = useState(false);
+  // Post-class logging simulation states
+  const [selectedSessionForLog, setSelectedSessionForLog] = useState(null);
+  const [isClassPresent, setIsClassPresent] = useState(true);
+  const [topicsCoveredText, setTopicsCoveredText] = useState('Completed Chapter 4 Quadratic Equations: Exercise 4.2 problem solving.');
   const [classLogged, setClassLogged] = useState(false);
+
+  // Other simulation states
+  const [paymentDone, setPaymentDone] = useState(false);
   const [actionSuccess, setActionSuccess] = useState('');
 
   // Fetch initial data
@@ -70,16 +76,49 @@ export default function DashboardPage() {
 
   const fetchData = async () => {
     try {
-      const [gradesRes, sessionsRes] = await Promise.all([
+      const [gradesRes, sessionsRes, attendanceRes] = await Promise.all([
         axios.get('/api/schedule/grades'),
-        axios.get('/api/schedule/sessions').catch(() => ({ data: { sessions: [] } }))
+        axios.get('/api/schedule/sessions').catch(() => ({ data: { sessions: [] } })),
+        axios.get('/api/attendance/all').catch(() => ({ data: { attendance: {} } }))
       ]);
       setGrades(gradesRes.data.grades || []);
-      setSessions(sessionsRes.data.sessions || []);
+      const loadedSessions = sessionsRes.data.sessions || [];
+      setSessions(loadedSessions);
+      setAttendanceRecords(attendanceRes.data.attendance || {});
+
+      if (loadedSessions.length > 0) {
+        setSelectedSessionForLog(loadedSessions[0]);
+      }
     } catch (err) {
       console.warn('Using local state defaults for offline preview');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // 🚀 Auto-Attendance Trigger on "Join Google Meet" click
+  const handleJoinClass = async (session) => {
+    try {
+      // 1. Post to Auto-Attendance API
+      const res = await axios.post('/api/attendance/join', { sessionId: session.id });
+      setAttendanceRecords(prev => ({ ...prev, [session.id]: res.data.record }));
+      setActionSuccess(`✅ Smart Attendance logged! Auto-detected entry at ${res.data.record.joinedTimeDisplay}`);
+      setTimeout(() => setActionSuccess(''), 5000);
+    } catch (err) {
+      // Fallback local state if API fails
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      setAttendanceRecords(prev => ({
+        ...prev,
+        [session.id]: {
+          status: 'PRESENT',
+          autoDetected: true,
+          joinedTimeDisplay: timeStr
+        }
+      }));
+    } finally {
+      // 2. Open Google Meet in a new tab
+      window.open(session.meetLink || 'https://meet.google.com/new', '_blank');
     }
   };
 
@@ -137,11 +176,6 @@ export default function DashboardPage() {
     } catch (err) {
       alert(err.response?.data?.error || 'Failed to add grade');
     }
-  };
-
-  const handleJoinClass = (link) => {
-    setAttendanceMarked(true);
-    window.open(link || 'https://meet.google.com/new', '_blank');
   };
 
   const handleSignOut = () => {
@@ -207,7 +241,7 @@ export default function DashboardPage() {
           <div className="space-y-6 max-w-5xl mx-auto animate-fadeIn">
             
             {/* Header Greeting */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
+            <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
                   Welcome back, {user.name} 👋
@@ -217,62 +251,71 @@ export default function DashboardPage() {
                 </p>
               </div>
 
-              {attendanceMarked ? (
-                <div className="flex items-center space-x-2 text-xs font-bold px-4 py-2.5 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm animate-pulse">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  <span>Smart Attendance: PRESENT (Auto-detected at 5:02 PM)</span>
-                </div>
-              ) : (
-                <div className="flex items-center space-x-2 text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-50 text-slate-600 border border-slate-200">
-                  <Clock className="w-3.5 h-3.5 text-indigo-500" />
-                  <span>Next 1-on-1 Session Today</span>
-                </div>
-              )}
+              <div className="flex items-center space-x-2 text-xs font-semibold px-3.5 py-2 rounded-xl bg-indigo-50 text-indigo-700 border border-indigo-200">
+                <Clock className="w-4 h-4 text-indigo-500" />
+                <span>Next 1-on-1 Class Scheduled Today</span>
+              </div>
             </div>
 
-            {/* List of Scheduled Classes */}
+            {/* List of Scheduled Classes with Smart Auto-Attendance */}
             <div className="space-y-4">
               <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                 <Calendar className="w-5 h-5 text-indigo-600" />
                 Your Scheduled 1-on-1 Classes
               </h3>
 
-              {sessions.filter(s => s.status !== 'CANCELLED').map((s) => (
-                <div key={s.id} className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
-                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-                    <div>
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
-                        <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                          Scheduled: {s.date}
+              {sessions.filter(s => s.status !== 'CANCELLED').map((s) => {
+                const attendance = attendanceRecords[s.id];
+                const isPresent = attendance?.status === 'PRESENT';
+
+                return (
+                  <div key={s.id} className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
+                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                      <div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className={`w-2.5 h-2.5 rounded-full ${isPresent ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500 animate-ping'}`} />
+                          <span className={`text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${
+                            isPresent 
+                              ? 'text-emerald-700 bg-emerald-50 border-emerald-200' 
+                              : 'text-indigo-700 bg-indigo-50 border-indigo-200'
+                          }`}>
+                            {isPresent ? 'Present (Auto-detected)' : `Scheduled: ${s.date}`}
+                          </span>
+                        </div>
+                        <h4 className="text-xl font-bold text-slate-900">{s.subject}: {s.topic}</h4>
+                        <p className="text-sm text-slate-500 mt-1">
+                          Teacher: <strong className="text-slate-800">{s.teacherName}</strong> &bull; Time: <strong>{s.startTime} – {s.endTime} ({s.durationHours} hrs)</strong>
+                        </p>
+
+                        {isPresent && (
+                          <div className="mt-2 text-xs font-bold text-emerald-600 flex items-center gap-1.5">
+                            <CheckCircle2 className="w-4 h-4" />
+                            <span>Smart Attendance Logged: Joined at {attendance.joinedTimeDisplay}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex flex-col items-center sm:items-end w-full md:w-auto">
+                        <button 
+                          onClick={() => handleJoinClass(s)}
+                          className={`w-full md:w-auto px-7 py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2.5 transition-all shadow-md ${
+                            isPresent 
+                              ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-200' 
+                              : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-200'
+                          }`}
+                        >
+                          <Video className="w-4 h-4" />
+                          <span>{isPresent ? 'Re-Join Google Meet' : 'Join Google Meet'}</span>
+                          <ExternalLink className="w-3.5 h-3.5 opacity-75" />
+                        </button>
+                        <span className="text-[11px] text-slate-400 mt-1 text-center">
+                          ⚡ Click automatically records attendance
                         </span>
                       </div>
-                      <h4 className="text-xl font-bold text-slate-900">{s.subject}: {s.topic}</h4>
-                      <p className="text-sm text-slate-500 mt-1">
-                        Teacher: <strong className="text-slate-800">{s.teacherName}</strong> &bull; Time: <strong>{s.startTime} – {s.endTime} ({s.durationHours} hrs)</strong>
-                      </p>
-                    </div>
-
-                    <div className="flex flex-col items-center sm:items-end w-full md:w-auto">
-                      <button 
-                        onClick={() => handleJoinClass(s.meetLink)}
-                        className={`w-full md:w-auto px-6 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-md ${
-                          attendanceMarked 
-                            ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-200' 
-                            : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-200'
-                        }`}
-                      >
-                        <Video className="w-4 h-4" />
-                        <span>{attendanceMarked ? 'Re-Join Google Meet' : 'Join Google Meet'}</span>
-                        <ExternalLink className="w-3.5 h-3.5 opacity-75" />
-                      </button>
-                      <span className="text-[11px] text-slate-400 mt-1">
-                        ⚡ Click auto-marks attendance
-                      </span>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* Fee & Homework Section */}
@@ -402,7 +445,7 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* 1-on-1 Sessions List */}
+            {/* 1-on-1 Sessions List with Live Attendance Badges */}
             <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
               <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2">
                 <Calendar className="w-5 h-5 text-indigo-600" />
@@ -410,68 +453,85 @@ export default function DashboardPage() {
               </h3>
 
               <div className="space-y-3">
-                {sessions.map((s) => (
-                  <div 
-                    key={s.id} 
-                    className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all ${
-                      s.status === 'CANCELLED' 
-                        ? 'bg-slate-50 border-slate-200 opacity-60' 
-                        : 'bg-white border-slate-200/80 hover:border-indigo-300'
-                    }`}
-                  >
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
-                          s.status === 'CANCELLED' 
-                            ? 'bg-red-50 text-red-600 border border-red-200' 
-                            : 'bg-indigo-50 text-indigo-700 border border-indigo-200'
-                        }`}>
-                          {s.status}
-                        </span>
-                        <span className="text-xs font-semibold text-slate-500">{s.date} &bull; {s.startTime} - {s.endTime} ({s.durationHours} hrs)</span>
-                      </div>
-                      <h4 className="font-bold text-sm text-slate-900 mt-1">
-                        {s.studentName} ({s.grade}) &bull; {s.subject}
-                      </h4>
-                      <div className="text-xs text-slate-500 flex items-center gap-2 mt-1">
-                        <span>Meet:</span>
-                        <a href={s.meetLink} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline flex items-center gap-1 font-mono text-[11px]">
-                          {s.meetLink} <ExternalLink className="w-3 h-3" />
-                        </a>
-                      </div>
-                    </div>
+                {sessions.map((s) => {
+                  const attendance = attendanceRecords[s.id];
+                  const hasJoined = attendance?.status === 'PRESENT';
 
-                    {s.status === 'SCHEDULED' && (
-                      <div className="flex items-center gap-2">
-                        <button 
-                          onClick={() => handleCancelSession(s.id)}
-                          className="px-3 py-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 text-xs font-bold transition-colors"
-                        >
-                          Cancel Class
-                        </button>
-                        <a 
-                          href={s.meetLink} 
-                          target="_blank" 
-                          rel="noreferrer"
-                          className="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all shadow-sm"
-                        >
-                          Start Class
-                        </a>
+                  return (
+                    <div 
+                      key={s.id} 
+                      className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all ${
+                        s.status === 'CANCELLED' 
+                          ? 'bg-slate-50 border-slate-200 opacity-60' 
+                          : 'bg-white border-slate-200/80 hover:border-indigo-300'
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                            s.status === 'CANCELLED' 
+                              ? 'bg-red-50 text-red-600 border border-red-200' 
+                              : hasJoined
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold'
+                              : 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                          }`}>
+                            {s.status === 'CANCELLED' ? 'CANCELLED' : hasJoined ? 'STUDENT JOINED' : 'SCHEDULED'}
+                          </span>
+                          <span className="text-xs font-semibold text-slate-500">{s.date} &bull; {s.startTime} - {s.endTime} ({s.durationHours} hrs)</span>
+                        </div>
+
+                        <h4 className="font-bold text-sm text-slate-900 mt-1">
+                          {s.studentName} ({s.grade}) &bull; {s.subject}
+                        </h4>
+
+                        {/* Live Attendance Confirmation */}
+                        {hasJoined ? (
+                          <div className="text-xs font-bold text-emerald-600 flex items-center gap-1.5 mt-1">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>Auto-Attendance Verified: Joined at {attendance.joinedTimeDisplay}</span>
+                          </div>
+                        ) : (
+                          <div className="text-xs text-slate-400 flex items-center gap-2 mt-1">
+                            <span>Meet Link:</span>
+                            <a href={s.meetLink} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline flex items-center gap-1 font-mono text-[11px]">
+                              {s.meetLink} <ExternalLink className="w-3 h-3" />
+                            </a>
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                ))}
+
+                      {s.status === 'SCHEDULED' && (
+                        <div className="flex items-center gap-2">
+                          <button 
+                            onClick={() => handleCancelSession(s.id)}
+                            className="px-3 py-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 text-xs font-bold transition-colors"
+                          >
+                            Cancel Class
+                          </button>
+                          <a 
+                            href={s.meetLink} 
+                            target="_blank" 
+                            rel="noreferrer"
+                            className="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all shadow-sm"
+                          >
+                            Start Class
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
-            {/* Post-Class Logging Form */}
+            {/* Post-Class Logging Form (Pre-filled with Auto-Attendance) */}
             <div className="p-6 sm:p-8 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
               <h3 className="text-xl font-bold text-slate-900 mb-1 flex items-center gap-2">
                 <Clock className="w-5 h-5 text-indigo-600" />
                 Submit Post-Class Log (Mandatory for Hourly Payout)
               </h3>
               <p className="text-xs text-slate-500 mb-6">
-                System calculates exact duration hours to ensure 100% accurate student billing and teacher compensation.
+                Attendance is pre-filled automatically when the student joins. System calculates exact hours for accurate billing.
               </p>
 
               {classLogged ? (
@@ -501,8 +561,15 @@ export default function DashboardPage() {
                   <div>
                     <label className="text-xs font-bold text-slate-700 block mb-1">Attendance Confirmation</label>
                     <label className="flex items-center space-x-2 text-sm font-semibold text-slate-800">
-                      <input type="checkbox" defaultChecked className="w-4 h-4 text-indigo-600 rounded" />
-                      <span>Present (Auto-detected when student joined Meet)</span>
+                      <input 
+                        type="checkbox" 
+                        checked={isClassPresent}
+                        onChange={(e) => setIsClassPresent(e.target.checked)}
+                        className="w-4 h-4 text-indigo-600 rounded" 
+                      />
+                      <span className="text-emerald-700 font-bold">
+                        Present (Auto-detected when student clicked Google Meet link)
+                      </span>
                     </label>
                   </div>
 
@@ -510,7 +577,8 @@ export default function DashboardPage() {
                     <label className="text-xs font-bold text-slate-700 block mb-1">Topics Covered</label>
                     <textarea 
                       rows="2" 
-                      defaultValue="Completed Chapter 4 Quadratic Equations: Exercise 4.2 Problem solving." 
+                      value={topicsCoveredText}
+                      onChange={(e) => setTopicsCoveredText(e.target.value)}
                       className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm bg-white"
                     />
                   </div>
@@ -806,7 +874,7 @@ export default function DashboardPage() {
       <footer className="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-400">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
           <span>TuitionHub Management &bull; Authenticated Session</span>
-          <span className="text-emerald-600 font-semibold">● 1-on-1 Schedulers Active</span>
+          <span className="text-emerald-600 font-semibold">● Smart Auto-Attendance Active</span>
         </div>
       </footer>
 
