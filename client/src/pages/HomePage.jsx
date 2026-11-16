@@ -16,7 +16,11 @@ import {
   Lock,
   Check,
   Activity,
-  Play
+  Calculator,
+  TrendingUp,
+  Percent,
+  Sliders,
+  DollarSign
 } from 'lucide-react';
 
 export default function HomePage() {
@@ -29,6 +33,42 @@ export default function HomePage() {
     const now = new Date();
     setHeroJoinedTime(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
   };
+
+  // Interactive Calculator state (Issue #16)
+  const [selectedGrade, setSelectedGrade] = useState('grade10');
+  const [monthlyHours, setMonthlyHours] = useState(12);
+  const [studentCount, setStudentCount] = useState(25);
+  const [simulateCancellation, setSimulateCancellation] = useState(false);
+
+  const gradeRates = {
+    grade8: {
+      name: 'Grade 8 – 9 (Foundation)',
+      studentRate: 350,
+      teacherRate: 220
+    },
+    grade10: {
+      name: 'Grade 10 (Board Exam)',
+      studentRate: 400,
+      teacherRate: 250
+    },
+    grade12: {
+      name: 'Grade 11 – 12 (JEE / NEET / Boards)',
+      studentRate: 600,
+      teacherRate: 350
+    }
+  };
+
+  const activeGrade = gradeRates[selectedGrade];
+  const effectiveHours = simulateCancellation ? Math.max(1, monthlyHours - 2) : monthlyHours;
+  const singleStudentFee = effectiveHours * activeGrade.studentRate;
+  const singleTeacherPay = effectiveHours * activeGrade.teacherRate;
+  const singleMargin = singleStudentFee - singleTeacherPay;
+  const marginPercentage = Math.round((singleMargin / singleStudentFee) * 100);
+
+  // Scaled for studentCount
+  const totalAcademyRevenue = singleStudentFee * studentCount;
+  const totalTeacherPayout = singleTeacherPay * studentCount;
+  const totalAcademyProfit = singleMargin * studentCount;
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col justify-between selection:bg-indigo-500 selection:text-white relative overflow-hidden">
@@ -60,6 +100,9 @@ export default function HomePage() {
             <a href="#features" className="hidden sm:inline-block text-xs font-semibold text-slate-600 hover:text-slate-900">
               Features
             </a>
+            <a href="#calculator" className="hidden sm:inline-block text-xs font-semibold text-slate-600 hover:text-indigo-600">
+              Economics Calculator
+            </a>
             <a href="#portals" className="hidden sm:inline-block text-xs font-semibold text-slate-600 hover:text-slate-900">
               User Roles
             </a>
@@ -75,8 +118,10 @@ export default function HomePage() {
         </div>
       </header>
 
-      {/* 🚀 Hero Section */}
+      {/* 🚀 Main Content */}
       <main className="flex-1">
+        
+        {/* Hero Section */}
         <section className="relative overflow-hidden py-14 sm:py-20">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
             
@@ -109,10 +154,10 @@ export default function HomePage() {
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
               </Link>
               <a
-                href="#features"
+                href="#calculator"
                 className="w-full sm:w-auto px-6 py-4 rounded-xl font-bold text-sm bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-sm transition-all text-center"
               >
-                Learn How It Works
+                Explore Profit Calculator &darr;
               </a>
             </div>
 
@@ -309,6 +354,207 @@ export default function HomePage() {
               </div>
 
             </div>
+          </div>
+        </section>
+
+        {/* 🧮 Interactive Academy Economics & Profit Calculator Section (Issue #16) */}
+        <section id="calculator" className="py-20 bg-slate-50 relative overflow-hidden">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            
+            <div className="text-center max-w-3xl mx-auto mb-14">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold mb-3">
+                <Calculator className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Interactive Academy Business Model</span>
+              </div>
+              <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
+                Instant Hourly Fee & Profit Margin Calculator
+              </h2>
+              <p className="mt-3 text-sm text-slate-600 max-w-2xl mx-auto">
+                Explore how automated hourly billing protects academy profit margins while ensuring 100% fair payouts to teachers with zero manual spreadsheet math.
+              </p>
+            </div>
+
+            <div className="max-w-4xl mx-auto bg-white rounded-3xl p-6 sm:p-10 border border-slate-200 shadow-xl shadow-slate-100">
+              
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                
+                {/* Left Column: Input Controls */}
+                <div className="lg:col-span-7 space-y-6">
+                  
+                  {/* Grade Selector */}
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500 block mb-2">
+                      1. Select Grade / Standard
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      {Object.entries(gradeRates).map(([key, data]) => (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => setSelectedGrade(key)}
+                          className={`p-3 rounded-2xl border text-left transition-all ${
+                            selectedGrade === key
+                              ? 'border-indigo-600 bg-indigo-50/50 shadow-sm ring-1 ring-indigo-500/20'
+                              : 'border-slate-200 hover:border-slate-300 bg-white'
+                          }`}
+                        >
+                          <span className="text-xs font-bold text-slate-900 block truncate">{data.name.split('(')[0]}</span>
+                          <span className="text-[11px] font-semibold text-indigo-600 block mt-0.5">₹{data.studentRate}/hr</span>
+                          <span className="text-[10px] text-slate-400 block">Teacher: ₹{data.teacherRate}/hr</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Monthly Hours Slider */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                        2. Monthly Hours per Student
+                      </label>
+                      <span className="text-xs font-black text-indigo-600 px-2.5 py-0.5 rounded-full bg-indigo-50 border border-indigo-200">
+                        {monthlyHours} Hours / Month
+                      </span>
+                    </div>
+
+                    <input
+                      type="range"
+                      min="4"
+                      max="32"
+                      step="2"
+                      value={monthlyHours}
+                      onChange={(e) => setMonthlyHours(Number(e.target.value))}
+                      className="w-full accent-indigo-600 cursor-pointer"
+                    />
+
+                    <div className="flex justify-between text-[10px] font-semibold text-slate-400 mt-1">
+                      <span>4 hrs (1 hr/wk)</span>
+                      <span>12 hrs (3 hrs/wk)</span>
+                      <span>20 hrs (5 hrs/wk)</span>
+                      <span>32 hrs (Intensive)</span>
+                    </div>
+                  </div>
+
+                  {/* Student Count Slider */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                        3. Number of Academy Students
+                      </label>
+                      <span className="text-xs font-black text-indigo-600 px-2.5 py-0.5 rounded-full bg-indigo-50 border border-indigo-200">
+                        {studentCount} Active Students
+                      </span>
+                    </div>
+
+                    <input
+                      type="range"
+                      min="1"
+                      max="100"
+                      step="5"
+                      value={studentCount}
+                      onChange={(e) => setStudentCount(Number(e.target.value))}
+                      className="w-full accent-indigo-600 cursor-pointer"
+                    />
+
+                    <div className="flex justify-between text-[10px] font-semibold text-slate-400 mt-1">
+                      <span>1 Student</span>
+                      <span>25 Students</span>
+                      <span>50 Students</span>
+                      <span>100+ Students</span>
+                    </div>
+                  </div>
+
+                  {/* Zero-Charge Cancellation Policy Simulation Toggle */}
+                  <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50/70">
+                    <label className="flex items-center justify-between cursor-pointer">
+                      <div>
+                        <span className="text-xs font-bold text-slate-900 block">
+                          Simulate Strict Zero-Charge Cancellation
+                        </span>
+                        <span className="text-[11px] text-slate-500 block mt-0.5">
+                          {simulateCancellation 
+                            ? 'Simulating 2 cancelled classes: ₹0 billed to parent, ₹0 unworked payout.' 
+                            : 'Toggle to test how missed classes bill ₹0 automatically without manual disputes.'}
+                        </span>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={simulateCancellation}
+                        onChange={(e) => setSimulateCancellation(e.target.checked)}
+                        className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                      />
+                    </label>
+                  </div>
+
+                </div>
+
+                {/* Right Column: Live Economics Calculation Card */}
+                <div className="lg:col-span-5 bg-gradient-to-br from-slate-900 to-indigo-950 text-white rounded-2xl p-6 sm:p-7 shadow-xl space-y-6">
+                  
+                  <div>
+                    <span className="text-[10px] font-extrabold uppercase tracking-widest text-indigo-300 block">
+                      Academy Economics Breakdown
+                    </span>
+                    <h3 className="text-xl font-bold mt-1 text-white">
+                      {activeGrade.name.split('(')[0]}
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {studentCount} Students &bull; {effectiveHours} Attended Hrs / mo
+                    </p>
+                  </div>
+
+                  {/* Breakdown List */}
+                  <div className="space-y-3 pt-2 text-xs">
+                    <div className="flex justify-between items-center pb-2 border-b border-white/10">
+                      <span className="text-slate-300">Total Student Revenue:</span>
+                      <strong className="text-sm font-bold text-white">
+                        ₹{totalAcademyRevenue.toLocaleString('en-IN')}
+                      </strong>
+                    </div>
+
+                    <div className="flex justify-between items-center pb-2 border-b border-white/10">
+                      <span className="text-slate-300">Total Teacher Payouts:</span>
+                      <strong className="text-sm font-semibold text-rose-300">
+                        ₹{totalTeacherPayout.toLocaleString('en-IN')}
+                      </strong>
+                    </div>
+
+                    <div className="flex justify-between items-center pt-1">
+                      <span className="font-bold text-indigo-200">Academy Gross Margin:</span>
+                      <span className="text-xs font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        {marginPercentage}% Margin
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Net Profit Callout */}
+                  <div className="p-4 rounded-xl bg-white/10 backdrop-blur-sm border border-white/10 text-center">
+                    <span className="text-[10px] uppercase font-extrabold tracking-wider text-emerald-400 block">
+                      Net Monthly Academy Profit
+                    </span>
+                    <div className="text-3xl font-black text-emerald-400 mt-1">
+                      +₹{totalAcademyProfit.toLocaleString('en-IN')}
+                    </div>
+                    <span className="text-[10px] text-slate-300 mt-0.5 block">
+                      Accrued automatically with zero manual accounting
+                    </span>
+                  </div>
+
+                  <div className="text-center pt-1">
+                    <Link
+                      to="/login"
+                      className="w-full py-2.5 rounded-xl font-bold text-xs bg-indigo-500 hover:bg-indigo-600 text-white transition-all block text-center shadow-md shadow-indigo-900/50"
+                    >
+                      Test in Admin Console &rarr;
+                    </Link>
+                  </div>
+
+                </div>
+
+              </div>
+
+            </div>
+
           </div>
         </section>
 
