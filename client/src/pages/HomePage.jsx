@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   GraduationCap, 
@@ -13,13 +13,31 @@ import {
   ExternalLink,
   Sparkles,
   Zap,
-  Lock
+  Lock,
+  Check,
+  Activity,
+  Play
 } from 'lucide-react';
 
 export default function HomePage() {
+  // Interactive Hero Mockup state
+  const [heroAttended, setHeroAttended] = useState(false);
+  const [heroJoinedTime, setHeroJoinedTime] = useState('5:01 PM');
+
+  const handleHeroJoinMeet = () => {
+    setHeroAttended(true);
+    const now = new Date();
+    setHeroJoinedTime(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+  };
+
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col justify-between selection:bg-indigo-500 selection:text-white">
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col justify-between selection:bg-indigo-500 selection:text-white relative overflow-hidden">
       
+      {/* Ambient background glows */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-[600px] bg-gradient-to-b from-indigo-100/40 via-violet-50/30 to-transparent pointer-events-none -z-10" />
+      <div className="absolute -top-40 right-1/4 w-96 h-96 bg-indigo-300/20 rounded-full blur-3xl pointer-events-none -z-10" />
+      <div className="absolute top-60 left-1/4 w-96 h-96 bg-violet-300/20 rounded-full blur-3xl pointer-events-none -z-10" />
+
       {/* 🌟 Header / Public Navbar */}
       <header className="bg-white/80 border-b border-slate-200/80 backdrop-blur-md sticky top-0 z-40 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
@@ -59,13 +77,13 @@ export default function HomePage() {
 
       {/* 🚀 Hero Section */}
       <main className="flex-1">
-        <section className="relative overflow-hidden py-16 sm:py-24">
+        <section className="relative overflow-hidden py-14 sm:py-20">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
             
             {/* Pill Announcement */}
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-bold mb-6 shadow-sm">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/80 border border-indigo-200 text-indigo-700 text-xs font-bold mb-6 shadow-sm backdrop-blur-sm">
               <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
-              <span>Replacing 200+ Student WhatsApp Chaos</span>
+              <span>Replacing 200+ Student WhatsApp Chaos with Automation</span>
             </div>
 
             {/* Main Headline */}
@@ -78,7 +96,7 @@ export default function HomePage() {
 
             {/* Subtitle */}
             <p className="mt-5 text-base sm:text-lg text-slate-600 max-w-2xl mx-auto leading-relaxed">
-              A private, automated platform for academy students, teachers, and administration. Smart Google Meet auto-attendance, strictly hourly fee calculation, and instant Razorpay payments.
+              A private, automated platform for academy students, teachers, and administration. Smart Google Meet auto-attendance, strictly hourly fee calculation, and instant digital payments.
             </p>
 
             {/* Action Buttons */}
@@ -98,8 +116,134 @@ export default function HomePage() {
               </a>
             </div>
 
+            {/* 🖥️ Interactive Floating Product Preview Mockup (Issue #15) */}
+            <div className="mt-14 max-w-4xl mx-auto text-left animate-fadeIn">
+              <div className="bg-white/95 rounded-3xl border border-slate-200/90 shadow-2xl shadow-indigo-100/50 backdrop-blur-xl overflow-hidden">
+                
+                {/* Browser Window Header Chrome */}
+                <div className="bg-slate-100/80 border-b border-slate-200/80 px-4 py-3 flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <span className="w-3 h-3 rounded-full bg-red-400 inline-block" />
+                    <span className="w-3 h-3 rounded-full bg-amber-400 inline-block" />
+                    <span className="w-3 h-3 rounded-full bg-emerald-400 inline-block" />
+                    <span className="text-xs text-slate-400 font-mono ml-2 hidden sm:inline">
+                      https://tuitionhub.academy/portal/dashboard
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[11px] font-bold">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      Live Academy System Preview
+                    </span>
+                  </div>
+                </div>
+
+                {/* Inner Window Preview Body */}
+                <div className="p-6 sm:p-8 space-y-6">
+                  
+                  {/* Top Notification Bar inside Mockup */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 font-bold">
+                        AS
+                      </div>
+                      <div>
+                        <div className="text-sm font-bold text-slate-900">Aryan Sharma &bull; Grade 10 (Board)</div>
+                        <div className="text-xs text-slate-500">Student Portal &bull; Billing Rate: ₹400 / hr</div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 self-start sm:self-auto">
+                      <span className="px-3 py-1 rounded-xl bg-purple-50 text-purple-700 border border-purple-200 text-xs font-bold">
+                        1-on-1 Dedicated Class
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Interactive Class Card */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
+                    
+                    {/* Class Details */}
+                    <div className="md:col-span-2 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded border ${
+                          heroAttended 
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                            : 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                        }`}>
+                          {heroAttended ? 'PRESENT (AUTO-DETECTED)' : 'HAPPENING TODAY &bull; 5:00 PM'}
+                        </span>
+                        <span className="text-xs font-semibold text-slate-500">Mathematics &bull; 1.5 Hours</span>
+                      </div>
+
+                      <h4 className="text-lg font-bold text-slate-900">
+                        Quadratic Equations &bull; Exercise 4.2 Problem Solving
+                      </h4>
+
+                      <p className="text-xs text-slate-500">
+                        Assigned Tutor: <strong className="text-slate-700">Mrs. Sunita Verma</strong> &bull; Google Meet Verified
+                      </p>
+
+                      {heroAttended ? (
+                        <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-800 flex items-center gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                          <span>Smart Auto-Attendance Logged! Entry verified at {heroJoinedTime}. Post-class form pre-filled.</span>
+                        </div>
+                      ) : (
+                        <div className="text-xs text-slate-400 flex items-center gap-1.5">
+                          <Activity className="w-3.5 h-3.5 text-indigo-500" />
+                          <span>Clicking "Join Meet" below will auto-timestamp attendance in the real system.</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Interactive Button */}
+                    <div className="flex flex-col items-center sm:items-end justify-center">
+                      <button
+                        onClick={handleHeroJoinMeet}
+                        className={`w-full py-3.5 px-6 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-all ${
+                          heroAttended
+                            ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-100'
+                            : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-100 hover:scale-[1.02]'
+                        }`}
+                      >
+                        <Video className="w-4 h-4" />
+                        <span>{heroAttended ? 'Attendance Verified ✓' : 'Join Google Meet (Test)'}</span>
+                      </button>
+                      <span className="text-[10px] text-slate-400 mt-1.5 text-center">
+                        {heroAttended ? 'Attendance recorded in database' : '⚡ Click to test auto-attendance'}
+                      </span>
+                    </div>
+
+                  </div>
+
+                  {/* Financial & Metric Telemetry Row */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 border-t border-slate-100">
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/60">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Month Attended</span>
+                      <span className="text-base font-extrabold text-slate-900">12.5 Hours</span>
+                    </div>
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/60">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Hourly Rate</span>
+                      <span className="text-base font-extrabold text-slate-900">₹400 / hr</span>
+                    </div>
+                    <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200/80">
+                      <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider block">Total Accrued</span>
+                      <span className="text-base font-extrabold text-emerald-700">₹5,000 (PAID)</span>
+                    </div>
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/60">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Missed Classes</span>
+                      <span className="text-base font-extrabold text-indigo-600">₹0 (Strict Rule)</span>
+                    </div>
+                  </div>
+
+                </div>
+
+              </div>
+            </div>
+
             {/* Trust Badges */}
-            <div className="mt-12 pt-8 border-t border-slate-200/60 max-w-3xl mx-auto grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
+            <div className="mt-14 pt-8 border-t border-slate-200/60 max-w-3xl mx-auto grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
               <div>
                 <div className="text-2xl font-black text-slate-900">200+</div>
                 <div className="text-xs text-slate-500 mt-0.5">Active Students</div>
