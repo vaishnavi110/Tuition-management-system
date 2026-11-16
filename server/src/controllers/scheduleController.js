@@ -158,6 +158,8 @@ const cancelSession = (req, res) => {
 };
 
 module.exports = {
+  GRADES,
+  SESSIONS,
   getGrades,
   createGrade,
   updateGrade,
