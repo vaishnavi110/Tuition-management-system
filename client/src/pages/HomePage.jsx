@@ -16,11 +16,8 @@ import {
   Lock,
   Check,
   Activity,
-  Calculator,
-  TrendingUp,
-  Percent,
-  Sliders,
-  DollarSign
+  Bell,
+  BookOpen
 } from 'lucide-react';
 
 export default function HomePage() {
@@ -34,55 +31,17 @@ export default function HomePage() {
     setHeroJoinedTime(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
   };
 
-  // Interactive Calculator state (Issue #16)
-  const [selectedGrade, setSelectedGrade] = useState('grade10');
-  const [monthlyHours, setMonthlyHours] = useState(12);
-  const [studentCount, setStudentCount] = useState(25);
-  const [simulateCancellation, setSimulateCancellation] = useState(false);
-
-  const gradeRates = {
-    grade8: {
-      name: 'Grade 8 – 9 (Foundation)',
-      studentRate: 350,
-      teacherRate: 220
-    },
-    grade10: {
-      name: 'Grade 10 (Board Exam)',
-      studentRate: 400,
-      teacherRate: 250
-    },
-    grade12: {
-      name: 'Grade 11 – 12 (JEE / NEET / Boards)',
-      studentRate: 600,
-      teacherRate: 350
-    }
-  };
-
-  const activeGrade = gradeRates[selectedGrade];
-  const effectiveHours = simulateCancellation ? Math.max(1, monthlyHours - 2) : monthlyHours;
-  const singleStudentFee = effectiveHours * activeGrade.studentRate;
-  const singleTeacherPay = effectiveHours * activeGrade.teacherRate;
-  const singleMargin = singleStudentFee - singleTeacherPay;
-  const marginPercentage = Math.round((singleMargin / singleStudentFee) * 100);
-
-  // Scaled for studentCount
-  const totalAcademyRevenue = singleStudentFee * studentCount;
-  const totalTeacherPayout = singleTeacherPay * studentCount;
-  const totalAcademyProfit = singleMargin * studentCount;
-
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col justify-between selection:bg-indigo-500 selection:text-white relative overflow-hidden">
       
       {/* Ambient background glows */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-[600px] bg-gradient-to-b from-indigo-100/40 via-violet-50/30 to-transparent pointer-events-none -z-10" />
-      <div className="absolute -top-40 right-1/4 w-96 h-96 bg-indigo-300/20 rounded-full blur-3xl pointer-events-none -z-10" />
-      <div className="absolute top-60 left-1/4 w-96 h-96 bg-violet-300/20 rounded-full blur-3xl pointer-events-none -z-10" />
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-[500px] bg-gradient-to-b from-indigo-100/30 via-violet-50/20 to-transparent pointer-events-none -z-10" />
 
       {/* 🌟 Header / Public Navbar */}
       <header className="bg-white/80 border-b border-slate-200/80 backdrop-blur-md sticky top-0 z-40 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           
-          {/* Logo */}
+          {/* Academy Brand Logo */}
           <Link to="/" className="flex items-center space-x-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-600 flex items-center justify-center text-white shadow-md shadow-indigo-100">
               <GraduationCap className="w-6 h-6" />
@@ -90,21 +49,18 @@ export default function HomePage() {
             <div>
               <span className="font-extrabold text-lg text-slate-900 tracking-tight">TuitionHub</span>
               <span className="ml-2 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
-                Official Portal
+                Official Academy Portal
               </span>
             </div>
           </Link>
 
           {/* Navigation Links & Sign In CTA */}
           <div className="flex items-center space-x-4 sm:space-x-6">
-            <a href="#features" className="hidden sm:inline-block text-xs font-semibold text-slate-600 hover:text-slate-900">
-              Features
-            </a>
-            <a href="#calculator" className="hidden sm:inline-block text-xs font-semibold text-slate-600 hover:text-indigo-600">
-              Economics Calculator
+            <a href="#about" className="hidden sm:inline-block text-xs font-semibold text-slate-600 hover:text-slate-900">
+              About Platform
             </a>
             <a href="#portals" className="hidden sm:inline-block text-xs font-semibold text-slate-600 hover:text-slate-900">
-              User Roles
+              Portal Access
             </a>
             <Link
               to="/login"
@@ -121,6 +77,16 @@ export default function HomePage() {
       {/* 🚀 Main Content */}
       <main className="flex-1">
         
+        {/* Academy Notice / Announcement Ticker */}
+        <div className="bg-indigo-50/80 border-b border-indigo-100/80 py-2.5 px-4 text-center">
+          <div className="max-w-7xl mx-auto flex items-center justify-center gap-2 text-xs font-semibold text-indigo-900">
+            <Bell className="w-3.5 h-3.5 text-indigo-600 flex-shrink-0" />
+            <span>
+              Academy Notice: Term 2 1-on-1 personalized sessions are active. Ensure you click "Join Google Meet" from your portal to record attendance.
+            </span>
+          </div>
+        </div>
+
         {/* Hero Section */}
         <section className="relative overflow-hidden py-14 sm:py-20">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
@@ -128,20 +94,20 @@ export default function HomePage() {
             {/* Pill Announcement */}
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/80 border border-indigo-200 text-indigo-700 text-xs font-bold mb-6 shadow-sm backdrop-blur-sm">
               <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
-              <span>Replacing 200+ Student WhatsApp Chaos with Automation</span>
+              <span>Official Academy Online Tuition & Attendance System</span>
             </div>
 
             {/* Main Headline */}
             <h1 className="text-4xl sm:text-6xl font-black text-slate-900 tracking-tight leading-tight max-w-4xl mx-auto">
-              Automated 1-on-1 Tuition & <br className="hidden sm:inline" />
+              Private 1-on-1 Tuition & <br className="hidden sm:inline" />
               <span className="bg-gradient-to-r from-indigo-600 via-violet-600 to-indigo-700 bg-clip-text text-transparent">
-                Billing Management System
+                Billing Management Portal
               </span>
             </h1>
 
             {/* Subtitle */}
             <p className="mt-5 text-base sm:text-lg text-slate-600 max-w-2xl mx-auto leading-relaxed">
-              A private, automated platform for academy students, teachers, and administration. Smart Google Meet auto-attendance, strictly hourly fee calculation, and instant digital payments.
+              The dedicated digital hub for our academy's students, parents, tutors, and management. Automated 1-on-1 class scheduling, Google Meet auto-attendance, and transparent hourly fee tracking.
             </p>
 
             {/* Action Buttons */}
@@ -154,14 +120,14 @@ export default function HomePage() {
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
               </Link>
               <a
-                href="#calculator"
+                href="#portals"
                 className="w-full sm:w-auto px-6 py-4 rounded-xl font-bold text-sm bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-sm transition-all text-center"
               >
-                Explore Profit Calculator &darr;
+                Select Your Role &darr;
               </a>
             </div>
 
-            {/* 🖥️ Interactive Floating Product Preview Mockup (Issue #15) */}
+            {/* 🖥️ Live Product Preview Window Mockup */}
             <div className="mt-14 max-w-4xl mx-auto text-left animate-fadeIn">
               <div className="bg-white/95 rounded-3xl border border-slate-200/90 shadow-2xl shadow-indigo-100/50 backdrop-blur-xl overflow-hidden">
                 
@@ -262,7 +228,7 @@ export default function HomePage() {
 
                   </div>
 
-                  {/* Financial & Metric Telemetry Row */}
+                  {/* Telemetry Row */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 border-t border-slate-100">
                     <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/60">
                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Month Attended</span>
@@ -278,7 +244,7 @@ export default function HomePage() {
                     </div>
                     <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/60">
                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Missed Classes</span>
-                      <span className="text-base font-extrabold text-indigo-600">₹0 (Strict Rule)</span>
+                      <span className="text-base font-extrabold text-indigo-600">₹0 (Strict Policy)</span>
                     </div>
                   </div>
 
@@ -291,15 +257,15 @@ export default function HomePage() {
             <div className="mt-14 pt-8 border-t border-slate-200/60 max-w-3xl mx-auto grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
               <div>
                 <div className="text-2xl font-black text-slate-900">200+</div>
-                <div className="text-xs text-slate-500 mt-0.5">Active Students</div>
+                <div className="text-xs text-slate-500 mt-0.5">Enrolled Students</div>
               </div>
               <div>
                 <div className="text-2xl font-black text-slate-900">Strictly 1-on-1</div>
-                <div className="text-xs text-slate-500 mt-0.5">Custom Scheduling</div>
+                <div className="text-xs text-slate-500 mt-0.5">Dedicated Tutoring</div>
               </div>
               <div>
                 <div className="text-2xl font-black text-slate-900">Auto-Attendance</div>
-                <div className="text-xs text-slate-500 mt-0.5">Google Meet Linked</div>
+                <div className="text-xs text-slate-500 mt-0.5">Zero Manual Roll-Call</div>
               </div>
               <div>
                 <div className="text-2xl font-black text-emerald-600">Razorpay & UPI</div>
@@ -310,275 +276,28 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* 🎯 Feature Highlights Section */}
-        <section id="features" className="py-16 bg-white border-y border-slate-200/80">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center max-w-2xl mx-auto mb-12">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-indigo-600">Core Capabilities</h2>
-              <h3 className="text-3xl font-extrabold text-slate-900 mt-1">Built to Eliminate Daily Operational Headaches</h3>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              
-              {/* Feature 1 */}
-              <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200/80 hover:shadow-md transition-shadow">
-                <div className="w-12 h-12 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center mb-4">
-                  <Video className="w-6 h-6" />
-                </div>
-                <h4 className="text-lg font-bold text-slate-900">1-Click Google Meet & Smart Attendance</h4>
-                <p className="text-sm text-slate-500 mt-2">
-                  Teachers paste their Google Meet links. When students click "Join", the system automatically timestamps their entry and marks attendance as Present.
-                </p>
-              </div>
-
-              {/* Feature 2 */}
-              <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200/80 hover:shadow-md transition-shadow">
-                <div className="w-12 h-12 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center mb-4">
-                  <Clock className="w-6 h-6" />
-                </div>
-                <h4 className="text-lg font-bold text-slate-900">Strictly Hourly Grade-Based Billing</h4>
-                <p className="text-sm text-slate-500 mt-2">
-                  No manual math or disputed fees. Fees and salaries calculate automatically: Attended Hours × Grade Hourly Rate. Cancelled classes are strictly ₹0.
-                </p>
-              </div>
-
-              {/* Feature 3 */}
-              <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200/80 hover:shadow-md transition-shadow">
-                <div className="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center mb-4">
-                  <CreditCard className="w-6 h-6" />
-                </div>
-                <h4 className="text-lg font-bold text-slate-900">Automated Razorpay Invoices</h4>
-                <p className="text-sm text-slate-500 mt-2">
-                  Parents pay directly with GPay, PhonePe, Cards, or NetBanking. Invoices update to PAID automatically, generating instant digital receipts.
-                </p>
-              </div>
-
-            </div>
-          </div>
-        </section>
-
-        {/* 🧮 Interactive Academy Economics & Profit Calculator Section (Issue #16) */}
-        <section id="calculator" className="py-20 bg-slate-50 relative overflow-hidden">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            
-            <div className="text-center max-w-3xl mx-auto mb-14">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold mb-3">
-                <Calculator className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Interactive Academy Business Model</span>
-              </div>
-              <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
-                Instant Hourly Fee & Profit Margin Calculator
-              </h2>
-              <p className="mt-3 text-sm text-slate-600 max-w-2xl mx-auto">
-                Explore how automated hourly billing protects academy profit margins while ensuring 100% fair payouts to teachers with zero manual spreadsheet math.
-              </p>
-            </div>
-
-            <div className="max-w-4xl mx-auto bg-white rounded-3xl p-6 sm:p-10 border border-slate-200 shadow-xl shadow-slate-100">
-              
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                
-                {/* Left Column: Input Controls */}
-                <div className="lg:col-span-7 space-y-6">
-                  
-                  {/* Grade Selector */}
-                  <div>
-                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500 block mb-2">
-                      1. Select Grade / Standard
-                    </label>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                      {Object.entries(gradeRates).map(([key, data]) => (
-                        <button
-                          key={key}
-                          type="button"
-                          onClick={() => setSelectedGrade(key)}
-                          className={`p-3 rounded-2xl border text-left transition-all ${
-                            selectedGrade === key
-                              ? 'border-indigo-600 bg-indigo-50/50 shadow-sm ring-1 ring-indigo-500/20'
-                              : 'border-slate-200 hover:border-slate-300 bg-white'
-                          }`}
-                        >
-                          <span className="text-xs font-bold text-slate-900 block truncate">{data.name.split('(')[0]}</span>
-                          <span className="text-[11px] font-semibold text-indigo-600 block mt-0.5">₹{data.studentRate}/hr</span>
-                          <span className="text-[10px] text-slate-400 block">Teacher: ₹{data.teacherRate}/hr</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Monthly Hours Slider */}
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                        2. Monthly Hours per Student
-                      </label>
-                      <span className="text-xs font-black text-indigo-600 px-2.5 py-0.5 rounded-full bg-indigo-50 border border-indigo-200">
-                        {monthlyHours} Hours / Month
-                      </span>
-                    </div>
-
-                    <input
-                      type="range"
-                      min="4"
-                      max="32"
-                      step="2"
-                      value={monthlyHours}
-                      onChange={(e) => setMonthlyHours(Number(e.target.value))}
-                      className="w-full accent-indigo-600 cursor-pointer"
-                    />
-
-                    <div className="flex justify-between text-[10px] font-semibold text-slate-400 mt-1">
-                      <span>4 hrs (1 hr/wk)</span>
-                      <span>12 hrs (3 hrs/wk)</span>
-                      <span>20 hrs (5 hrs/wk)</span>
-                      <span>32 hrs (Intensive)</span>
-                    </div>
-                  </div>
-
-                  {/* Student Count Slider */}
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                        3. Number of Academy Students
-                      </label>
-                      <span className="text-xs font-black text-indigo-600 px-2.5 py-0.5 rounded-full bg-indigo-50 border border-indigo-200">
-                        {studentCount} Active Students
-                      </span>
-                    </div>
-
-                    <input
-                      type="range"
-                      min="1"
-                      max="100"
-                      step="5"
-                      value={studentCount}
-                      onChange={(e) => setStudentCount(Number(e.target.value))}
-                      className="w-full accent-indigo-600 cursor-pointer"
-                    />
-
-                    <div className="flex justify-between text-[10px] font-semibold text-slate-400 mt-1">
-                      <span>1 Student</span>
-                      <span>25 Students</span>
-                      <span>50 Students</span>
-                      <span>100+ Students</span>
-                    </div>
-                  </div>
-
-                  {/* Zero-Charge Cancellation Policy Simulation Toggle */}
-                  <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50/70">
-                    <label className="flex items-center justify-between cursor-pointer">
-                      <div>
-                        <span className="text-xs font-bold text-slate-900 block">
-                          Simulate Strict Zero-Charge Cancellation
-                        </span>
-                        <span className="text-[11px] text-slate-500 block mt-0.5">
-                          {simulateCancellation 
-                            ? 'Simulating 2 cancelled classes: ₹0 billed to parent, ₹0 unworked payout.' 
-                            : 'Toggle to test how missed classes bill ₹0 automatically without manual disputes.'}
-                        </span>
-                      </div>
-                      <input
-                        type="checkbox"
-                        checked={simulateCancellation}
-                        onChange={(e) => setSimulateCancellation(e.target.checked)}
-                        className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
-                      />
-                    </label>
-                  </div>
-
-                </div>
-
-                {/* Right Column: Live Economics Calculation Card */}
-                <div className="lg:col-span-5 bg-gradient-to-br from-slate-900 to-indigo-950 text-white rounded-2xl p-6 sm:p-7 shadow-xl space-y-6">
-                  
-                  <div>
-                    <span className="text-[10px] font-extrabold uppercase tracking-widest text-indigo-300 block">
-                      Academy Economics Breakdown
-                    </span>
-                    <h3 className="text-xl font-bold mt-1 text-white">
-                      {activeGrade.name.split('(')[0]}
-                    </h3>
-                    <p className="text-xs text-slate-400 mt-0.5">
-                      {studentCount} Students &bull; {effectiveHours} Attended Hrs / mo
-                    </p>
-                  </div>
-
-                  {/* Breakdown List */}
-                  <div className="space-y-3 pt-2 text-xs">
-                    <div className="flex justify-between items-center pb-2 border-b border-white/10">
-                      <span className="text-slate-300">Total Student Revenue:</span>
-                      <strong className="text-sm font-bold text-white">
-                        ₹{totalAcademyRevenue.toLocaleString('en-IN')}
-                      </strong>
-                    </div>
-
-                    <div className="flex justify-between items-center pb-2 border-b border-white/10">
-                      <span className="text-slate-300">Total Teacher Payouts:</span>
-                      <strong className="text-sm font-semibold text-rose-300">
-                        ₹{totalTeacherPayout.toLocaleString('en-IN')}
-                      </strong>
-                    </div>
-
-                    <div className="flex justify-between items-center pt-1">
-                      <span className="font-bold text-indigo-200">Academy Gross Margin:</span>
-                      <span className="text-xs font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                        {marginPercentage}% Margin
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Net Profit Callout */}
-                  <div className="p-4 rounded-xl bg-white/10 backdrop-blur-sm border border-white/10 text-center">
-                    <span className="text-[10px] uppercase font-extrabold tracking-wider text-emerald-400 block">
-                      Net Monthly Academy Profit
-                    </span>
-                    <div className="text-3xl font-black text-emerald-400 mt-1">
-                      +₹{totalAcademyProfit.toLocaleString('en-IN')}
-                    </div>
-                    <span className="text-[10px] text-slate-300 mt-0.5 block">
-                      Accrued automatically with zero manual accounting
-                    </span>
-                  </div>
-
-                  <div className="text-center pt-1">
-                    <Link
-                      to="/login"
-                      className="w-full py-2.5 rounded-xl font-bold text-xs bg-indigo-500 hover:bg-indigo-600 text-white transition-all block text-center shadow-md shadow-indigo-900/50"
-                    >
-                      Test in Admin Console &rarr;
-                    </Link>
-                  </div>
-
-                </div>
-
-              </div>
-
-            </div>
-
-          </div>
-        </section>
-
         {/* 👥 3 User Portals Section */}
-        <section id="portals" className="py-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <section id="portals" className="py-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 border-t border-slate-200/80">
           <div className="text-center max-w-2xl mx-auto mb-12">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-indigo-600">Role-Based Access</h2>
-            <h3 className="text-3xl font-extrabold text-slate-900 mt-1">Dedicated Portals for Every Member</h3>
+            <h2 className="text-xs font-bold uppercase tracking-wider text-indigo-600">Portal Access</h2>
+            <h3 className="text-3xl font-extrabold text-slate-900 mt-1">Dedicated Logins for Every Academy Role</h3>
+            <p className="text-sm text-slate-500 mt-2">Each user accesses their own role-restricted workspace with appropriate data privacy.</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             
             {/* Student Card */}
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
               <div>
                 <span className="text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  Student Portal
+                  Student & Parent Portal
                 </span>
-                <h4 className="text-xl font-bold text-slate-900 mt-3">For Students & Parents</h4>
+                <h4 className="text-xl font-bold text-slate-900 mt-3">Personal Learning Space</h4>
                 <ul className="mt-3 space-y-2 text-xs text-slate-600">
-                  <li className="flex items-center gap-2">✅ 1-Click "Join Google Meet" button</li>
-                  <li className="flex items-center gap-2">✅ Live attendance history</li>
-                  <li className="flex items-center gap-2">✅ Monthly fee bill with Razorpay "Pay Now"</li>
-                  <li className="flex items-center gap-2">✅ Homework photo upload</li>
+                  <li className="flex items-center gap-2">✅ 1-Click "Join Google Meet" with auto-attendance</li>
+                  <li className="flex items-center gap-2">✅ View verified attended hours and topics covered</li>
+                  <li className="flex items-center gap-2">✅ Monthly fee bill with instant Razorpay / UPI checkout</li>
+                  <li className="flex items-center gap-2">✅ Homework notebook photo uploads</li>
                 </ul>
               </div>
               <Link to="/login" className="mt-6 block text-center py-2.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 transition-colors">
@@ -587,17 +306,17 @@ export default function HomePage() {
             </div>
 
             {/* Teacher Card */}
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
               <div>
                 <span className="text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-blue-50 text-blue-700 border border-blue-200">
-                  Teacher Portal
+                  Tutor Portal
                 </span>
-                <h4 className="text-xl font-bold text-slate-900 mt-3">For Academy Tutors</h4>
+                <h4 className="text-xl font-bold text-slate-900 mt-3">Teacher Operations</h4>
                 <ul className="mt-3 space-y-2 text-xs text-slate-600">
-                  <li className="flex items-center gap-2">✅ View assigned 1-on-1 students</li>
-                  <li className="flex items-center gap-2">✅ Set/Reschedule class & paste Meet link</li>
-                  <li className="flex items-center gap-2">✅ Post-class logging (duration & topics)</li>
-                  <li className="flex items-center gap-2">✅ Live monthly salary tracker</li>
+                  <li className="flex items-center gap-2">✅ View assigned 1-on-1 students and schedule sessions</li>
+                  <li className="flex items-center gap-2">✅ Auto-detect student attendance when they join Meet</li>
+                  <li className="flex items-center gap-2">✅ Submit post-class log (decimal hours & topics)</li>
+                  <li className="flex items-center gap-2">✅ Track monthly accrued teaching compensation</li>
                 </ul>
               </div>
               <Link to="/login" className="mt-6 block text-center py-2.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-blue-50 hover:text-blue-700 transition-colors">
@@ -606,17 +325,17 @@ export default function HomePage() {
             </div>
 
             {/* Admin Card */}
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
               <div>
                 <span className="text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-purple-50 text-purple-700 border border-purple-200">
-                  Admin Console
+                  Management Console
                 </span>
-                <h4 className="text-xl font-bold text-slate-900 mt-3">For Academy Management</h4>
+                <h4 className="text-xl font-bold text-slate-900 mt-3">Academy Administration</h4>
                 <ul className="mt-3 space-y-2 text-xs text-slate-600">
-                  <li className="flex items-center gap-2">✅ Configure grade hourly rate matrix</li>
-                  <li className="flex items-center gap-2">✅ Assign teachers to students</li>
-                  <li className="flex items-center gap-2">✅ Monitor master schedules & logs</li>
-                  <li className="flex items-center gap-2">✅ View revenue, fee invoices & payroll</li>
+                  <li className="flex items-center gap-2">✅ Configure grade hourly rate matrix & institute margins</li>
+                  <li className="flex items-center gap-2">✅ Master audit ledger of all teacher-submitted logs</li>
+                  <li className="flex items-center gap-2">✅ Manage 200+ students and teacher allocations</li>
+                  <li className="flex items-center gap-2">✅ Revenue reconciliation, invoicing & payroll oversight</li>
                 </ul>
               </div>
               <Link to="/login" className="mt-6 block text-center py-2.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-purple-50 hover:text-purple-700 transition-colors">
@@ -641,7 +360,7 @@ export default function HomePage() {
               Portal Login
             </Link>
             <span>&bull;</span>
-            <span className="text-slate-400">Version 1.0 (MVP)</span>
+            <span className="text-slate-400">Secure Internal System</span>
           </div>
         </div>
       </footer>

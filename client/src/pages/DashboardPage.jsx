@@ -21,11 +21,16 @@ import {
   UserCheck,
   FileText,
   Check,
-  Layers
+  Layers,
+  Search,
+  Filter,
+  Calculator,
+  Printer,
+  Image as ImageIcon
 } from 'lucide-react';
 
 export default function DashboardPage() {
-  const { user, logout } = useAuth();
+  const { user, logout, quickLogin } = useAuth();
   const navigate = useNavigate();
   const role = user?.role || 'STUDENT';
 
@@ -40,6 +45,7 @@ export default function DashboardPage() {
   // Modals
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [isGradeModalOpen, setIsGradeModalOpen] = useState(false);
+  const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
 
   // Form states for new session
   const [studentName, setStudentName] = useState('Aryan Sharma');
@@ -65,9 +71,32 @@ export default function DashboardPage() {
   const [classLogged, setClassLogged] = useState(false);
   const [isSubmittingLog, setIsSubmittingLog] = useState(false);
 
-  // Other simulation states
+  // Admin Simulator state (Confidential Executive Tool)
+  const [adminSimGrade, setAdminSimGrade] = useState('grade10');
+  const [adminSimHours, setAdminSimHours] = useState(12);
+  const [adminSimStudents, setAdminSimStudents] = useState(30);
+
+  // Search & Filter state for Admin Ledger
+  const [searchQuery, setSearchQuery] = useState('');
+  const [gradeFilter, setGradeFilter] = useState('ALL');
+
+  // Homework Upload state (Student Portal)
+  const [uploadedHomeworkFile, setUploadedHomeworkFile] = useState(null);
+
+  // Simulation states
   const [paymentDone, setPaymentDone] = useState(false);
   const [actionSuccess, setActionSuccess] = useState('');
+
+  // Fast Demo Switcher handler
+  const handleSwitchDemoRole = async (targetRole) => {
+    try {
+      await quickLogin(targetRole);
+      setActionSuccess(`Switched to ${targetRole} view`);
+      setTimeout(() => setActionSuccess(''), 2500);
+    } catch (err) {
+      console.error('Role switch failed', err);
+    }
+  };
 
   // Calculate decimal hours between two HH:MM strings
   const computeDurationHours = (start, end) => {
@@ -83,7 +112,7 @@ export default function DashboardPage() {
   // Fetch initial data
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [user]);
 
   const fetchData = async () => {
     try {
@@ -115,7 +144,7 @@ export default function DashboardPage() {
     }
   };
 
-  // 🚀 Auto-Attendance Trigger on "Join Google Meet" click
+  // Auto-Attendance Trigger on "Join Google Meet" click
   const handleJoinClass = async (session) => {
     try {
       const res = await axios.post('/api/attendance/join', { sessionId: session.id });
@@ -138,7 +167,7 @@ export default function DashboardPage() {
     }
   };
 
-  // Handle Post-Class Log Submission (Issue #5)
+  // Handle Post-Class Log Submission
   const handleSubmitPostClassLog = async (e) => {
     e.preventDefault();
     setIsSubmittingLog(true);
@@ -196,7 +225,7 @@ export default function DashboardPage() {
     }
   };
 
-  // Cancel a session (Strict Zero-Charge Policy)
+  // Cancel a session
   const handleCancelSession = async (sessionId) => {
     if (!window.confirm('Are you sure you want to cancel this class? (As per policy, 0 hours will be billed).')) return;
     try {
@@ -230,10 +259,53 @@ export default function DashboardPage() {
     }
   };
 
+  // Homework file selection
+  const handleHomeworkUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setUploadedHomeworkFile({
+        name: file.name,
+        size: (file.size / 1024).toFixed(1) + ' KB',
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        previewUrl: URL.createObjectURL(file)
+      });
+      setActionSuccess('✅ Homework notebook uploaded and submitted for teacher review!');
+      setTimeout(() => setActionSuccess(''), 4000);
+    }
+  };
+
   const handleSignOut = () => {
     logout();
     navigate('/');
   };
+
+  // Admin Simulator calculations
+  const simRates = {
+    grade8: { name: 'Grade 8 – 9', studentRate: 350, teacherRate: 220 },
+    grade10: { name: 'Grade 10 (Board)', studentRate: 400, teacherRate: 250 },
+    grade12: { name: 'Grade 11 – 12 (JEE/NEET)', studentRate: 600, teacherRate: 350 }
+  };
+  const activeSim = simRates[adminSimGrade] || simRates.grade10;
+  const simTotalRev = activeSim.studentRate * adminSimHours * adminSimStudents;
+  const simTotalPay = activeSim.teacherRate * adminSimHours * adminSimStudents;
+  const simNetProfit = simTotalRev - simTotalPay;
+  const simMarginPct = Math.round((simNetProfit / simTotalRev) * 100);
+
+  // Filtered class logs for Admin
+  const filteredLogs = classLogs.filter(log => {
+    const matchesSearch = 
+      log.studentName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      log.teacherName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      log.subject?.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    const matchesGrade = 
+      gradeFilter === 'ALL' || 
+      (gradeFilter === 'GRADE10' && log.grade?.includes('10')) ||
+      (gradeFilter === 'GRADE12' && log.grade?.includes('12')) ||
+      (gradeFilter === 'GRADE8' && (log.grade?.includes('8') || log.grade?.includes('9')));
+
+    return matchesSearch && matchesGrade;
+  });
 
   if (!user) return null;
 
@@ -260,8 +332,39 @@ export default function DashboardPage() {
             </div>
           </div>
 
+          {/* ⚡ 1-Click Fast Role Switcher in Header (For Demo Presentation) */}
+          <div className="hidden md:flex items-center gap-1.5 px-2 py-1 bg-slate-100/90 rounded-2xl border border-slate-200">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-1.5">
+              Live Role Switch:
+            </span>
+            <button 
+              onClick={() => handleSwitchDemoRole('STUDENT')}
+              className={`px-3 py-1 rounded-xl text-xs font-bold transition-all ${
+                role === 'STUDENT' ? 'bg-white shadow text-emerald-700 border border-emerald-200' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              👩‍🎓 Student
+            </button>
+            <button 
+              onClick={() => handleSwitchDemoRole('TEACHER')}
+              className={`px-3 py-1 rounded-xl text-xs font-bold transition-all ${
+                role === 'TEACHER' ? 'bg-white shadow text-blue-700 border border-blue-200' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              👨‍🏫 Teacher
+            </button>
+            <button 
+              onClick={() => handleSwitchDemoRole('ADMIN')}
+              className={`px-3 py-1 rounded-xl text-xs font-bold transition-all ${
+                role === 'ADMIN' ? 'bg-white shadow text-purple-700 border border-purple-200' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              👑 Admin
+            </button>
+          </div>
+
           <div className="flex items-center space-x-4">
-            <div className="text-right">
+            <div className="text-right hidden sm:block">
               <div className="text-xs font-bold text-slate-900">{user.name}</div>
               <div className="text-[10px] font-semibold text-slate-400">{user.emailOrPhone}</div>
             </div>
@@ -270,7 +373,7 @@ export default function DashboardPage() {
               className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:text-red-600 hover:bg-red-50 hover:border-red-200 transition-all flex items-center gap-1.5"
             >
               <LogOut className="w-3.5 h-3.5" />
-              <span>Sign Out</span>
+              <span className="hidden sm:inline">Sign Out</span>
             </button>
           </div>
 
@@ -299,7 +402,7 @@ export default function DashboardPage() {
                   Welcome back, {user.name} 👋
                 </h2>
                 <p className="text-sm text-slate-500 mt-1">
-                  {user.grade || 'Grade 10'} &bull; Mathematics &bull; Rate: ₹{user.hourlyRate || 400}/hr
+                  {user.grade || 'Grade 10'} &bull; Mathematics &bull; Verified Hourly Rate: ₹{user.hourlyRate || 400}/hr
                 </p>
               </div>
 
@@ -460,24 +563,41 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                <div className="mt-5 pt-4 border-t border-slate-100">
+                <div className="mt-5 pt-4 border-t border-slate-100 flex flex-col gap-2">
                   {paymentDone ? (
-                    <div className="text-center py-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm font-bold flex items-center justify-center gap-2">
-                      <CheckCircle2 className="w-5 h-5 text-emerald-600" /> Payment Received &bull; Receipt #PAY-8921
+                    <div className="space-y-2">
+                      <div className="text-center py-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm font-bold flex items-center justify-center gap-2">
+                        <CheckCircle2 className="w-5 h-5 text-emerald-600" /> Payment Received &bull; Receipt #INV-2026-8921
+                      </div>
+                      <button 
+                        onClick={() => setIsReceiptModalOpen(true)}
+                        className="w-full py-2.5 rounded-xl font-bold text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors flex items-center justify-center gap-1.5"
+                      >
+                        <Printer className="w-3.5 h-3.5 text-slate-500" />
+                        <span>View / Print Official Fee Receipt</span>
+                      </button>
                     </div>
                   ) : (
-                    <button 
-                      onClick={() => setPaymentDone(true)}
-                      className="w-full py-3 rounded-xl font-bold text-sm bg-gradient-to-r from-indigo-600 to-violet-600 text-white hover:from-indigo-700 hover:to-violet-700 shadow-md shadow-indigo-100 transition-all flex items-center justify-center gap-2"
-                    >
-                      <span>Pay via Razorpay / UPI</span>
-                      <ExternalLink className="w-4 h-4 opacity-80" />
-                    </button>
+                    <div className="space-y-2">
+                      <button 
+                        onClick={() => setPaymentDone(true)}
+                        className="w-full py-3 rounded-xl font-bold text-sm bg-gradient-to-r from-indigo-600 to-violet-600 text-white hover:from-indigo-700 hover:to-violet-700 shadow-md shadow-indigo-100 transition-all flex items-center justify-center gap-2"
+                      >
+                        <span>Pay via Razorpay / UPI</span>
+                        <ExternalLink className="w-4 h-4 opacity-80" />
+                      </button>
+                      <button 
+                        onClick={() => setIsReceiptModalOpen(true)}
+                        className="w-full py-2 rounded-xl text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors"
+                      >
+                        Preview Official Invoice Breakdown
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
 
-              {/* Homework Card */}
+              {/* Homework Card with Real File Preview */}
               <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col justify-between">
                 <div>
                   <div className="flex items-center justify-between mb-4">
@@ -496,14 +616,32 @@ export default function DashboardPage() {
                   <p className="text-xs text-slate-500 mt-1 leading-relaxed">
                     Solve Questions 1 through 6 in notebook. Click photo of working and upload below for teacher review.
                   </p>
+
+                  {/* Uploaded File Confirmation */}
+                  {uploadedHomeworkFile && (
+                    <div className="mt-4 p-3 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center flex-shrink-0">
+                        <ImageIcon className="w-5 h-5" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs font-bold text-emerald-900 block truncate">{uploadedHomeworkFile.name}</span>
+                        <span className="text-[10px] text-emerald-700 block">Submitted at {uploadedHomeworkFile.time} ({uploadedHomeworkFile.size})</span>
+                      </div>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-200 text-emerald-800">
+                        Submitted
+                      </span>
+                    </div>
+                  )}
                 </div>
 
-                <div className="mt-6">
+                <div className="mt-4">
                   <label className="border-2 border-dashed border-slate-200 hover:border-indigo-400 rounded-2xl p-4 flex flex-col items-center justify-center cursor-pointer transition-colors bg-slate-50/50 hover:bg-indigo-50/20">
                     <Upload className="w-6 h-6 text-indigo-500 mb-1" />
-                    <span className="text-xs font-bold text-slate-700">Upload Notebook Photo</span>
+                    <span className="text-xs font-bold text-slate-700">
+                      {uploadedHomeworkFile ? 'Upload New Photo / Re-submit' : 'Upload Notebook Photo'}
+                    </span>
                     <span className="text-[10px] text-slate-400 mt-0.5">JPG, PNG or PDF up to 10MB</span>
-                    <input type="file" className="hidden" onChange={() => alert('Photo uploaded successfully for teacher review!')} />
+                    <input type="file" accept="image/*,.pdf" className="hidden" onChange={handleHomeworkUpload} />
                   </label>
                 </div>
               </div>
@@ -632,7 +770,7 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Post-Class Logging Engine Form (Issue #5) */}
+            {/* Post-Class Logging Engine Form */}
             <div className="p-6 sm:p-8 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6">
                 <div>
@@ -830,7 +968,7 @@ export default function DashboardPage() {
         {role === 'ADMIN' && (
           <div className="space-y-6 max-w-5xl mx-auto animate-fadeIn">
             
-            <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
+            <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
                   Admin Master Console
@@ -839,7 +977,7 @@ export default function DashboardPage() {
                   Managing 200+ Students, 14 Teachers & Hourly Financial Matrix
                 </p>
               </div>
-              <span className="text-xs px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full font-bold">
+              <span className="text-xs px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full font-bold self-start sm:self-auto">
                 ● Live Database Synced
               </span>
             </div>
@@ -870,9 +1008,113 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Academy Class Logs & Verified Hours Audit (Issue #5) */}
+            {/* 🔒 Academy Financial Economics & Profit Margin Simulator (Strictly for Admin) */}
+            <div className="p-6 sm:p-7 rounded-2xl bg-gradient-to-br from-slate-900 to-indigo-950 text-white shadow-xl">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 pb-4 border-b border-white/10">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Calculator className="w-5 h-5 text-indigo-400" />
+                    <h3 className="text-lg font-bold text-white">Academy Revenue & Margin Simulator</h3>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Confidential executive tool to project monthly revenues, teacher payouts, and net gross profits.
+                  </p>
+                </div>
+                <span className="text-xs font-bold px-3 py-1 bg-white/10 text-indigo-200 rounded-full border border-white/10 self-start sm:self-auto">
+                  Executive Dashboard
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                
+                {/* Controls */}
+                <div className="space-y-4 md:col-span-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-300 block mb-1">Standard / Grade</label>
+                      <select 
+                        value={adminSimGrade}
+                        onChange={(e) => setAdminSimGrade(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl bg-white/10 border border-white/15 text-xs text-white"
+                      >
+                        <option value="grade8" className="bg-slate-900 text-white">Grade 8 – 9 (₹350 / ₹220)</option>
+                        <option value="grade10" className="bg-slate-900 text-white">Grade 10 (₹400 / ₹250)</option>
+                        <option value="grade12" className="bg-slate-900 text-white">Grade 11 – 12 (₹600 / ₹350)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-300 block mb-1">
+                        Hours / Month ({adminSimHours} hrs)
+                      </label>
+                      <input 
+                        type="range"
+                        min="4"
+                        max="32"
+                        step="2"
+                        value={adminSimHours}
+                        onChange={(e) => setAdminSimHours(Number(e.target.value))}
+                        className="w-full accent-indigo-400 mt-1.5"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-300 block mb-1">
+                        Active Students ({adminSimStudents})
+                      </label>
+                      <input 
+                        type="range"
+                        min="5"
+                        max="100"
+                        step="5"
+                        value={adminSimStudents}
+                        onChange={(e) => setAdminSimStudents(Number(e.target.value))}
+                        className="w-full accent-indigo-400 mt-1.5"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3 pt-2 text-xs">
+                    <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+                      <span className="text-slate-400 text-[10px] uppercase font-bold block">Gross Revenue</span>
+                      <strong className="text-base text-white font-extrabold mt-0.5 block">
+                        ₹{simTotalRev.toLocaleString('en-IN')}
+                      </strong>
+                    </div>
+                    <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+                      <span className="text-slate-400 text-[10px] uppercase font-bold block">Teacher Payroll</span>
+                      <strong className="text-base text-rose-300 font-extrabold mt-0.5 block">
+                        ₹{simTotalPay.toLocaleString('en-IN')}
+                      </strong>
+                    </div>
+                    <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+                      <span className="text-emerald-300 text-[10px] uppercase font-bold block">Institute Cut</span>
+                      <strong className="text-base text-emerald-400 font-extrabold mt-0.5 block">
+                        {simMarginPct}% Margin
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Net Profit Big Badge */}
+                <div className="p-5 rounded-2xl bg-white/10 border border-white/15 flex flex-col items-center justify-center text-center">
+                  <span className="text-[10px] font-extrabold tracking-wider text-emerald-300 uppercase block">
+                    Net Projected Margin
+                  </span>
+                  <div className="text-3xl font-black text-emerald-400 mt-1">
+                    +₹{simNetProfit.toLocaleString('en-IN')}
+                  </div>
+                  <span className="text-[11px] text-slate-300 mt-1 block">
+                    Monthly margin after paying all teacher hourly fees
+                  </span>
+                </div>
+
+              </div>
+            </div>
+
+            {/* Academy Class Logs & Verified Hours Audit with Search & Filters */}
             <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                 <div>
                   <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
                     <FileText className="w-4 h-4 text-indigo-600" />
@@ -880,9 +1122,30 @@ export default function DashboardPage() {
                   </h3>
                   <p className="text-xs text-slate-500">Teacher-submitted post-class hours directly determine student invoices and teacher payouts.</p>
                 </div>
-                <span className="text-xs font-bold px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full border border-emerald-200">
-                  {classLogs.length} Verified Logs
-                </span>
+
+                {/* Filter and Search */}
+                <div className="flex items-center gap-2">
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input 
+                      type="text" 
+                      placeholder="Search student or teacher..." 
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-8 pr-3 py-1.5 rounded-xl border border-slate-200 text-xs w-48 bg-slate-50 focus:bg-white"
+                    />
+                  </div>
+                  <select 
+                    value={gradeFilter} 
+                    onChange={(e) => setGradeFilter(e.target.value)}
+                    className="px-2.5 py-1.5 rounded-xl border border-slate-200 text-xs bg-slate-50 font-medium"
+                  >
+                    <option value="ALL">All Standards</option>
+                    <option value="GRADE10">Grade 10</option>
+                    <option value="GRADE12">Grade 12</option>
+                    <option value="GRADE8">Grade 8-9</option>
+                  </select>
+                </div>
               </div>
 
               <div className="overflow-x-auto">
@@ -899,7 +1162,7 @@ export default function DashboardPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {classLogs.map((log) => {
+                    {filteredLogs.map((log) => {
                       const studentRate = log.grade?.includes('12') ? 600 : 400;
                       const teacherRate = log.grade?.includes('12') ? 350 : 250;
                       const studentCharge = Math.round(log.billableHours * studentRate);
@@ -981,6 +1244,100 @@ export default function DashboardPage() {
         )}
 
       </main>
+
+      {/* 📄 Modal: Official Academy Fee Receipt (Student Portal) */}
+      {isReceiptModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 border border-slate-200 shadow-2xl relative">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center">
+                  <GraduationCap className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-900 text-base">TuitionHub Coaching Academy</h3>
+                  <span className="text-[10px] text-slate-400 font-mono">Official Fee Receipt &bull; #INV-2026-8921</span>
+                </div>
+              </div>
+              <button onClick={() => setIsReceiptModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="py-5 space-y-4 text-xs">
+              <div className="grid grid-cols-2 gap-4 p-3 rounded-xl bg-slate-50">
+                <div>
+                  <span className="text-slate-400 text-[10px] uppercase font-bold block">Billed To Student</span>
+                  <span className="font-bold text-slate-900 block mt-0.5">Aryan Sharma</span>
+                  <span className="text-slate-500">Grade 10 (Board Exam)</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 text-[10px] uppercase font-bold block">Billing Period</span>
+                  <span className="font-bold text-slate-900 block mt-0.5">November 2026</span>
+                  <span className="text-emerald-700 font-semibold">Payment Status: {paymentDone ? 'PAID' : 'DUE'}</span>
+                </div>
+              </div>
+
+              {/* Itemized Table */}
+              <div className="border border-slate-200 rounded-xl overflow-hidden">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-100/70 border-b border-slate-200 text-slate-600 font-bold">
+                    <tr>
+                      <th className="py-2 px-3">Subject / Description</th>
+                      <th className="py-2 px-3">Attended</th>
+                      <th className="py-2 px-3">Rate</th>
+                      <th className="py-2 px-3 text-right">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    <tr>
+                      <td className="py-2.5 px-3 font-semibold text-slate-800">1-on-1 Mathematics (Quadratic Equations)</td>
+                      <td className="py-2.5 px-3">1.5 hrs</td>
+                      <td className="py-2.5 px-3">₹400/hr</td>
+                      <td className="py-2.5 px-3 text-right font-bold">₹600</td>
+                    </tr>
+                    <tr>
+                      <td className="py-2.5 px-3 font-semibold text-slate-800">1-on-1 Mathematics (Linear Equations)</td>
+                      <td className="py-2.5 px-3">1.0 hr</td>
+                      <td className="py-2.5 px-3">₹400/hr</td>
+                      <td className="py-2.5 px-3 text-right font-bold">₹400</td>
+                    </tr>
+                  </tbody>
+                  <tfoot className="bg-slate-50 font-bold border-t border-slate-200">
+                    <tr>
+                      <td colSpan="3" className="py-2 px-3 text-slate-700">Total Attended Verified Hours:</td>
+                      <td className="py-2 px-3 text-right text-indigo-600 font-black text-sm">₹1,000</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+
+              <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 font-semibold flex items-center justify-between">
+                <span>Payment Mode: Razorpay / Direct UPI</span>
+                <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-emerald-200 text-emerald-900">
+                  Receipt Verified
+                </span>
+              </div>
+            </div>
+
+            <div className="pt-2 flex justify-end gap-2 border-t border-slate-100">
+              <button 
+                onClick={() => setIsReceiptModalOpen(false)}
+                className="px-4 py-2 rounded-xl text-xs font-bold border border-slate-200 text-slate-600 hover:bg-slate-50"
+              >
+                Close
+              </button>
+              <button 
+                onClick={() => window.print()}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-1.5 shadow-sm"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                <span>Print / Save as PDF</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal: Schedule 1-on-1 Class */}
       {isScheduleModalOpen && (
