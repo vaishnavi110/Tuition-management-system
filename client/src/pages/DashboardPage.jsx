@@ -26,11 +26,22 @@ import {
   Filter,
   Calculator,
   Printer,
-  Image as ImageIcon
+  Image as ImageIcon,
+  User,
+  KeyRound,
+  Copy,
+  Share2,
+  Send,
+  Save,
+  Phone,
+  Mail,
+  Building,
+  Award,
+  ShieldCheck
 } from 'lucide-react';
 
 export default function DashboardPage() {
-  const { user, logout, quickLogin } = useAuth();
+  const { user, logout, quickLogin, updateProfile } = useAuth();
   const navigate = useNavigate();
   const role = user?.role || 'STUDENT';
 
@@ -46,6 +57,7 @@ export default function DashboardPage() {
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [isGradeModalOpen, setIsGradeModalOpen] = useState(false);
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
   // Form states for new session
   const [studentName, setStudentName] = useState('Aryan Sharma');
@@ -80,12 +92,74 @@ export default function DashboardPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [gradeFilter, setGradeFilter] = useState('ALL');
 
+  // Admin Tutor & Staff Invitation Manager state
+  const [inviteTargetRole, setInviteTargetRole] = useState('TEACHER');
+  const [inviteSubject, setInviteSubject] = useState('Mathematics');
+  const [copiedInvite, setCopiedInvite] = useState(false);
+  const [copiedWhatsApp, setCopiedWhatsApp] = useState(false);
+
+  // Profile Editor state
+  const [profileName, setProfileName] = useState('');
+  const [profilePhone, setProfilePhone] = useState('');
+  const [profileParentName, setProfileParentName] = useState('');
+  const [profileParentPhone, setProfileParentPhone] = useState('');
+  const [profileSchoolName, setProfileSchoolName] = useState('');
+  const [profileSubject, setProfileSubject] = useState('');
+  const [profileQualification, setProfileQualification] = useState('');
+  const [profileBankAccount, setProfileBankAccount] = useState('');
+  const [profileDesignation, setProfileDesignation] = useState('');
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+
   // Homework Upload state (Student Portal)
   const [uploadedHomeworkFile, setUploadedHomeworkFile] = useState(null);
 
   // Simulation states
   const [paymentDone, setPaymentDone] = useState(false);
   const [actionSuccess, setActionSuccess] = useState('');
+
+  // Open Profile Modal and populate fields
+  const openProfileModal = () => {
+    if (user) {
+      setProfileName(user.name || '');
+      setProfilePhone(user.phone || '');
+      setProfileParentName(user.parentName || '');
+      setProfileParentPhone(user.parentPhone || '');
+      setProfileSchoolName(user.schoolName || '');
+      setProfileSubject(user.subject || 'Mathematics');
+      setProfileQualification(user.qualification || '');
+      setProfileBankAccount(user.bankAccount || '');
+      setProfileDesignation(user.designation || '');
+    }
+    setIsProfileModalOpen(true);
+  };
+
+  // Save profile changes
+  const handleSaveProfile = async (e) => {
+    e.preventDefault();
+    setIsSavingProfile(true);
+
+    try {
+      await updateProfile({
+        name: profileName,
+        phone: profilePhone,
+        parentName: profileParentName,
+        parentPhone: profileParentPhone,
+        schoolName: profileSchoolName,
+        subject: profileSubject,
+        qualification: profileQualification,
+        bankAccount: profileBankAccount,
+        designation: profileDesignation
+      });
+
+      setIsProfileModalOpen(false);
+      setActionSuccess('✅ Profile updated successfully!');
+      setTimeout(() => setActionSuccess(''), 3000);
+    } catch (err) {
+      alert('Failed to update profile.');
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
 
   // Fast Demo Switcher handler
   const handleSwitchDemoRole = async (targetRole) => {
@@ -274,6 +348,27 @@ export default function DashboardPage() {
     }
   };
 
+  // Copy Invitation Link handler (Admin)
+  const getGeneratedInviteLink = () => {
+    const code = inviteTargetRole === 'TEACHER' ? 'TUTOR-2026-INVITE' : 'ADMIN-SUPER-2026';
+    return `${window.location.origin}/register?role=${inviteTargetRole}&code=${code}`;
+  };
+
+  const handleCopyInviteLink = () => {
+    navigator.clipboard.writeText(getGeneratedInviteLink());
+    setCopiedInvite(true);
+    setTimeout(() => setCopiedInvite(false), 2500);
+  };
+
+  const handleCopyWhatsAppInvite = () => {
+    const link = getGeneratedInviteLink();
+    const roleTitle = inviteTargetRole === 'TEACHER' ? '1-on-1 Tutor' : 'Operations Staff';
+    const message = `Hello! You have been invited to join TuitionHub Academy as an authorized ${roleTitle}. Please complete your onboarding registration here: ${link}`;
+    navigator.clipboard.writeText(message);
+    setCopiedWhatsApp(true);
+    setTimeout(() => setCopiedWhatsApp(false), 2500);
+  };
+
   const handleSignOut = () => {
     logout();
     navigate('/');
@@ -363,11 +458,22 @@ export default function DashboardPage() {
             </button>
           </div>
 
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-3 sm:space-x-4">
             <div className="text-right hidden sm:block">
               <div className="text-xs font-bold text-slate-900">{user.name}</div>
               <div className="text-[10px] font-semibold text-slate-400">{user.emailOrPhone}</div>
             </div>
+
+            {/* 👤 My Profile Button */}
+            <button
+              onClick={openProfileModal}
+              className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-100 hover:border-slate-300 transition-all flex items-center gap-1.5"
+            >
+              <User className="w-3.5 h-3.5 text-indigo-600" />
+              <span>My Profile</span>
+            </button>
+
+            {/* Sign Out Button */}
             <button
               onClick={handleSignOut}
               className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:text-red-600 hover:bg-red-50 hover:border-red-200 transition-all flex items-center gap-1.5"
@@ -406,9 +512,18 @@ export default function DashboardPage() {
                 </p>
               </div>
 
-              <div className="flex items-center space-x-2 text-xs font-semibold px-3.5 py-2 rounded-xl bg-indigo-50 text-indigo-700 border border-indigo-200">
-                <Clock className="w-4 h-4 text-indigo-500" />
-                <span>Next 1-on-1 Class Scheduled Today</span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={openProfileModal}
+                  className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1.5 transition-colors"
+                >
+                  <User className="w-3.5 h-3.5 text-slate-600" />
+                  <span>Student Profile</span>
+                </button>
+                <div className="flex items-center space-x-2 text-xs font-semibold px-3 py-2 rounded-xl bg-indigo-50 text-indigo-700 border border-indigo-200">
+                  <Clock className="w-4 h-4 text-indigo-500" />
+                  <span>Today's Class Ready</span>
+                </div>
               </div>
             </div>
 
@@ -667,6 +782,13 @@ export default function DashboardPage() {
               </div>
 
               <div className="flex items-center gap-3">
+                <button
+                  onClick={openProfileModal}
+                  className="px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-all flex items-center gap-1.5"
+                >
+                  <Award className="w-4 h-4 text-indigo-600" />
+                  <span>Teacher Profile</span>
+                </button>
                 <button 
                   onClick={() => setIsScheduleModalOpen(true)}
                   className="px-4 py-2.5 rounded-xl font-bold text-xs bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-1.5 shadow-md shadow-indigo-100 transition-all"
@@ -977,9 +1099,18 @@ export default function DashboardPage() {
                   Managing 200+ Students, 14 Teachers & Hourly Financial Matrix
                 </p>
               </div>
-              <span className="text-xs px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full font-bold self-start sm:self-auto">
-                ● Live Database Synced
-              </span>
+              <div className="flex items-center gap-2 self-start sm:self-auto">
+                <button
+                  onClick={openProfileModal}
+                  className="px-3.5 py-2 rounded-xl bg-purple-50 text-purple-700 border border-purple-200 text-xs font-bold flex items-center gap-1.5 transition-colors"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>Admin Profile</span>
+                </button>
+                <span className="text-xs px-3 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl font-bold">
+                  ● Live Sync
+                </span>
+              </div>
             </div>
 
             {/* Metrics */}
@@ -1005,6 +1136,102 @@ export default function DashboardPage() {
                 <span className="text-xs text-slate-500">Monthly Revenue</span>
                 <div className="text-3xl font-extrabold text-emerald-600 mt-1">₹3,78,000</div>
                 <span className="text-[11px] text-emerald-600 mt-0.5 block">Razorpay & UPI</span>
+              </div>
+            </div>
+
+            {/* 🔐 TUTOR & STAFF INVITATION MANAGER WIDGET */}
+            <div className="p-6 sm:p-7 rounded-2xl bg-white border border-indigo-100 shadow-md shadow-indigo-50/50 relative overflow-hidden">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5 pb-4 border-b border-slate-100">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
+                      <KeyRound className="w-4 h-4" />
+                    </div>
+                    <h3 className="text-base font-bold text-slate-900">
+                      Tutor & Staff Invitation Manager (Controlled Onboarding)
+                    </h3>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Student enrollment is 100% public. Tutors & staff require an authorized invitation code issued below.
+                  </p>
+                </div>
+                <span className="text-xs font-bold px-3 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full self-start sm:self-auto">
+                  Gatekeeper Access
+                </span>
+              </div>
+
+              {/* Invitation Generator Controls */}
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-end">
+                <div className="md:col-span-3">
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1">Target Role</label>
+                  <select
+                    value={inviteTargetRole}
+                    onChange={(e) => setInviteTargetRole(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold bg-white"
+                  >
+                    <option value="TEACHER">Tutor / Teacher</option>
+                    <option value="ADMIN">Administrative Staff</option>
+                  </select>
+                </div>
+
+                {inviteTargetRole === 'TEACHER' && (
+                  <div className="md:col-span-3">
+                    <label className="text-[11px] font-bold text-slate-700 block mb-1">Assigned Department</label>
+                    <select
+                      value={inviteSubject}
+                      onChange={(e) => setInviteSubject(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold bg-white"
+                    >
+                      <option value="Mathematics">Mathematics</option>
+                      <option value="Physics">Physics</option>
+                      <option value="Chemistry">Chemistry</option>
+                      <option value="Biology">Biology</option>
+                      <option value="English">English</option>
+                    </select>
+                  </div>
+                )}
+
+                <div className={inviteTargetRole === 'TEACHER' ? 'md:col-span-6' : 'md:col-span-9'}>
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1">Authorized Invitation Link</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      readOnly
+                      value={getGeneratedInviteLink()}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono bg-slate-50 text-slate-600 truncate select-all"
+                    />
+                    <button
+                      onClick={handleCopyInviteLink}
+                      className="px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center gap-1.5 flex-shrink-0 transition-colors shadow-sm"
+                    >
+                      {copiedInvite ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copiedInvite ? 'Copied!' : 'Copy Link'}</span>
+                    </button>
+                    <button
+                      onClick={handleCopyWhatsAppInvite}
+                      className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 flex-shrink-0 transition-colors shadow-sm"
+                    >
+                      {copiedWhatsApp ? <Check className="w-3.5 h-3.5" /> : <Send className="w-3.5 h-3.5" />}
+                      <span>{copiedWhatsApp ? 'Copied Text!' : 'WhatsApp'}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Active Invitation Keys Badge */}
+              <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between text-xs text-slate-500 gap-2">
+                <div className="flex items-center gap-3">
+                  <span>Active Keys:</span>
+                  <span className="font-mono font-bold text-[11px] text-slate-700 bg-slate-100 px-2 py-0.5 rounded border">
+                    TUTOR-2026-INVITE (Teachers)
+                  </span>
+                  <span className="font-mono font-bold text-[11px] text-slate-700 bg-slate-100 px-2 py-0.5 rounded border">
+                    ADMIN-SUPER-2026 (Staff)
+                  </span>
+                </div>
+                <span className="text-[11px] text-indigo-600 font-semibold">
+                  ⚡ Auto-fills role and secret key when opened
+                </span>
               </div>
             </div>
 
@@ -1244,6 +1471,220 @@ export default function DashboardPage() {
         )}
 
       </main>
+
+      {/* 👤 ROLE-BASED USER PROFILE MODAL & EDITOR */}
+      {isProfileModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-8 border border-slate-200 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+            
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
+              <div className="flex items-center gap-3">
+                <div className={`w-11 h-11 rounded-2xl flex items-center justify-center text-white font-bold text-base shadow-sm ${
+                  role === 'ADMIN' ? 'bg-purple-600' :
+                  role === 'TEACHER' ? 'bg-blue-600' : 'bg-emerald-600'
+                }`}>
+                  {user.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-900 text-lg">{user.name}</h3>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                      role === 'ADMIN' ? 'bg-purple-50 text-purple-700 border-purple-200' :
+                      role === 'TEACHER' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                      'bg-emerald-50 text-emerald-700 border-emerald-200'
+                    }`}>
+                      {role} Profile
+                    </span>
+                    <span className="text-xs text-slate-400">&bull; {user.emailOrPhone}</span>
+                  </div>
+                </div>
+              </div>
+
+              <button 
+                onClick={() => setIsProfileModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-xl hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveProfile} className="space-y-4 text-xs">
+              
+              {/* Common Details */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Full Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={profileName}
+                    onChange={(e) => setProfileName(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs bg-white focus:ring-2 focus:ring-indigo-500/20"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Contact Phone</label>
+                  <input
+                    type="tel"
+                    required
+                    value={profilePhone}
+                    onChange={(e) => setProfilePhone(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs bg-white focus:ring-2 focus:ring-indigo-500/20"
+                  />
+                </div>
+              </div>
+
+              {/* 👩‍🎓 Student Role Specific Profile Fields */}
+              {role === 'STUDENT' && (
+                <div className="p-4 rounded-2xl bg-emerald-50/50 border border-emerald-100 space-y-3">
+                  <div className="text-[11px] font-bold text-emerald-900 uppercase tracking-wider flex items-center justify-between">
+                    <span>Academic & Parent Details</span>
+                    <span className="text-xs font-black text-emerald-700">Rate: ₹{user.hourlyRate || 400}/hr</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="font-bold text-slate-700 block mb-1">Enrolled Grade</label>
+                      <input
+                        type="text"
+                        readOnly
+                        value={user.grade || 'Grade 10'}
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs bg-slate-100/80 text-slate-600"
+                      />
+                    </div>
+                    <div>
+                      <label className="font-bold text-slate-700 block mb-1">School / Institution</label>
+                      <input
+                        type="text"
+                        value={profileSchoolName}
+                        onChange={(e) => setProfileSchoolName(e.target.value)}
+                        placeholder="e.g. Delhi Public School"
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs bg-white"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="font-bold text-slate-700 block mb-1">Parent / Guardian Name</label>
+                      <input
+                        type="text"
+                        value={profileParentName}
+                        onChange={(e) => setProfileParentName(e.target.value)}
+                        placeholder="e.g. Mr. Rajesh Sharma"
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="font-bold text-slate-700 block mb-1">Parent Contact Number</label>
+                      <input
+                        type="tel"
+                        value={profileParentPhone}
+                        onChange={(e) => setProfileParentPhone(e.target.value)}
+                        placeholder="+91 91234 56789"
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs bg-white"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 👨‍🏫 Teacher Role Specific Profile Fields */}
+              {role === 'TEACHER' && (
+                <div className="p-4 rounded-2xl bg-blue-50/50 border border-blue-100 space-y-3">
+                  <div className="text-[11px] font-bold text-blue-900 uppercase tracking-wider flex items-center justify-between">
+                    <span>Tutor Credentials & Payout Account</span>
+                    <span className="text-xs font-black text-blue-700">Compensation: ₹{user.hourlyRate || 250}/hr</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="font-bold text-slate-700 block mb-1">Primary Subject Taught</label>
+                      <input
+                        type="text"
+                        value={profileSubject}
+                        onChange={(e) => setProfileSubject(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="font-bold text-slate-700 block mb-1">Educational Qualification</label>
+                      <input
+                        type="text"
+                        value={profileQualification}
+                        onChange={(e) => setProfileQualification(e.target.value)}
+                        placeholder="e.g. M.Sc. Mathematics, B.Ed"
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs bg-white"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">Registered Bank / UPI for Payouts</label>
+                    <input
+                      type="text"
+                      value={profileBankAccount}
+                      onChange={(e) => setProfileBankAccount(e.target.value)}
+                      placeholder="e.g. HDFC Bank •••• 4892 (or UPI ID teacher@okaxis)"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs bg-white font-mono"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* 👑 Admin Role Specific Profile Fields */}
+              {role === 'ADMIN' && (
+                <div className="p-4 rounded-2xl bg-purple-50/50 border border-purple-100 space-y-3">
+                  <div className="text-[11px] font-bold text-purple-900 uppercase tracking-wider">
+                    Administrative Designation & Organization
+                  </div>
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">Staff Designation</label>
+                    <input
+                      type="text"
+                      value={profileDesignation}
+                      onChange={(e) => setProfileDesignation(e.target.value)}
+                      placeholder="e.g. Operations Director / Academic Coordinator"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs bg-white"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 pt-1 text-[11px] text-slate-500">
+                    <div className="p-2.5 rounded-xl bg-white border border-slate-200">
+                      <span className="block font-bold text-slate-800">204 Students</span>
+                      <span>Under Active Administration</span>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-white border border-slate-200">
+                      <span className="block font-bold text-slate-800">14 Dedicated Tutors</span>
+                      <span>Assigned to 1-on-1 Classes</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="pt-3 flex justify-end gap-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsProfileModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingProfile}
+                  className="px-5 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-100 transition-all flex items-center gap-1.5"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>{isSavingProfile ? 'Saving...' : 'Save Profile Changes'}</span>
+                </button>
+              </div>
+
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* 📄 Modal: Official Academy Fee Receipt (Student Portal) */}
       {isReceiptModalOpen && (
