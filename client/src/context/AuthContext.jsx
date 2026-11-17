@@ -34,6 +34,23 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Real registration
+  const registerUser = async (formData) => {
+    setError(null);
+    try {
+      const res = await axios.post('/api/auth/register', formData);
+      const { token: receivedToken, user: receivedUser } = res.data;
+      localStorage.setItem('tuition_token', receivedToken);
+      setToken(receivedToken);
+      setUser(receivedUser);
+      return receivedUser;
+    } catch (err) {
+      const message = err.response?.data?.error || 'Registration failed. Please try again.';
+      setError(message);
+      throw new Error(message);
+    }
+  };
+
   // Real login with credentials
   const login = async (emailOrPhone, password) => {
     setError(null);
@@ -46,6 +63,20 @@ export const AuthProvider = ({ children }) => {
       return receivedUser;
     } catch (err) {
       const message = err.response?.data?.error || 'Login failed. Please check your credentials.';
+      setError(message);
+      throw new Error(message);
+    }
+  };
+
+  // Update profile
+  const updateProfile = async (profileData) => {
+    setError(null);
+    try {
+      const res = await axios.put('/api/auth/profile', profileData);
+      setUser(res.data.user);
+      return res.data.user;
+    } catch (err) {
+      const message = err.response?.data?.error || 'Failed to update profile.';
       setError(message);
       throw new Error(message);
     }
@@ -72,11 +103,22 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, role: user?.role, login, quickLogin, logout, loading, error, setError }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      token, 
+      role: user?.role, 
+      login, 
+      registerUser, 
+      updateProfile, 
+      quickLogin, 
+      logout, 
+      loading, 
+      error, 
+      setError 
+    }}>
       {children}
     </AuthContext.Provider>
   );
 };
 
 export const useAuth = () => useContext(AuthContext);
-

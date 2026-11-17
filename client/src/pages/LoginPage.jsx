@@ -130,6 +130,14 @@ export default function LoginPage() {
             </button>
           </form>
 
+          {/* Registration Link */}
+          <div className="mt-5 text-center text-xs text-slate-500">
+            Don't have an academy account?{' '}
+            <Link to="/register" className="font-bold text-indigo-600 hover:underline">
+              Register Here
+            </Link>
+          </div>
+
           {/* 1-Click Fast Demo Testing Section */}
           <div className="mt-8 pt-6 border-t border-slate-100">
             <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 text-center mb-3">
