@@ -16,7 +16,8 @@ import {
   Lock,
   Check,
   Activity,
-  Play
+  Bell,
+  BookOpen
 } from 'lucide-react';
 
 export default function HomePage() {
@@ -34,15 +35,13 @@ export default function HomePage() {
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col justify-between selection:bg-indigo-500 selection:text-white relative overflow-hidden">
       
       {/* Ambient background glows */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-[600px] bg-gradient-to-b from-indigo-100/40 via-violet-50/30 to-transparent pointer-events-none -z-10" />
-      <div className="absolute -top-40 right-1/4 w-96 h-96 bg-indigo-300/20 rounded-full blur-3xl pointer-events-none -z-10" />
-      <div className="absolute top-60 left-1/4 w-96 h-96 bg-violet-300/20 rounded-full blur-3xl pointer-events-none -z-10" />
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-[500px] bg-gradient-to-b from-indigo-100/30 via-violet-50/20 to-transparent pointer-events-none -z-10" />
 
       {/* 🌟 Header / Public Navbar */}
       <header className="bg-white/80 border-b border-slate-200/80 backdrop-blur-md sticky top-0 z-40 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           
-          {/* Logo */}
+          {/* Academy Brand Logo */}
           <Link to="/" className="flex items-center space-x-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-600 flex items-center justify-center text-white shadow-md shadow-indigo-100">
               <GraduationCap className="w-6 h-6" />
@@ -50,18 +49,18 @@ export default function HomePage() {
             <div>
               <span className="font-extrabold text-lg text-slate-900 tracking-tight">TuitionHub</span>
               <span className="ml-2 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
-                Official Portal
+                Official Academy Portal
               </span>
             </div>
           </Link>
 
           {/* Navigation Links & Sign In CTA */}
           <div className="flex items-center space-x-4 sm:space-x-6">
-            <a href="#features" className="hidden sm:inline-block text-xs font-semibold text-slate-600 hover:text-slate-900">
-              Features
+            <a href="#about" className="hidden sm:inline-block text-xs font-semibold text-slate-600 hover:text-slate-900">
+              About Platform
             </a>
             <a href="#portals" className="hidden sm:inline-block text-xs font-semibold text-slate-600 hover:text-slate-900">
-              User Roles
+              Portal Access
             </a>
             <Link
               to="/login"
@@ -75,28 +74,40 @@ export default function HomePage() {
         </div>
       </header>
 
-      {/* 🚀 Hero Section */}
+      {/* 🚀 Main Content */}
       <main className="flex-1">
+        
+        {/* Academy Notice / Announcement Ticker */}
+        <div className="bg-indigo-50/80 border-b border-indigo-100/80 py-2.5 px-4 text-center">
+          <div className="max-w-7xl mx-auto flex items-center justify-center gap-2 text-xs font-semibold text-indigo-900">
+            <Bell className="w-3.5 h-3.5 text-indigo-600 flex-shrink-0" />
+            <span>
+              Academy Notice: Term 2 1-on-1 personalized sessions are active. Ensure you click "Join Google Meet" from your portal to record attendance.
+            </span>
+          </div>
+        </div>
+
+        {/* Hero Section */}
         <section className="relative overflow-hidden py-14 sm:py-20">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
             
             {/* Pill Announcement */}
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/80 border border-indigo-200 text-indigo-700 text-xs font-bold mb-6 shadow-sm backdrop-blur-sm">
               <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
-              <span>Replacing 200+ Student WhatsApp Chaos with Automation</span>
+              <span>Official Academy Online Tuition & Attendance System</span>
             </div>
 
             {/* Main Headline */}
             <h1 className="text-4xl sm:text-6xl font-black text-slate-900 tracking-tight leading-tight max-w-4xl mx-auto">
-              Automated 1-on-1 Tuition & <br className="hidden sm:inline" />
+              Private 1-on-1 Tuition & <br className="hidden sm:inline" />
               <span className="bg-gradient-to-r from-indigo-600 via-violet-600 to-indigo-700 bg-clip-text text-transparent">
-                Billing Management System
+                Billing Management Portal
               </span>
             </h1>
 
             {/* Subtitle */}
             <p className="mt-5 text-base sm:text-lg text-slate-600 max-w-2xl mx-auto leading-relaxed">
-              A private, automated platform for academy students, teachers, and administration. Smart Google Meet auto-attendance, strictly hourly fee calculation, and instant digital payments.
+              The dedicated digital hub for our academy's students, parents, tutors, and management. Automated 1-on-1 class scheduling, Google Meet auto-attendance, and transparent hourly fee tracking.
             </p>
 
             {/* Action Buttons */}
@@ -109,14 +120,14 @@ export default function HomePage() {
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
               </Link>
               <a
-                href="#features"
+                href="#portals"
                 className="w-full sm:w-auto px-6 py-4 rounded-xl font-bold text-sm bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-sm transition-all text-center"
               >
-                Learn How It Works
+                Select Your Role &darr;
               </a>
             </div>
 
-            {/* 🖥️ Interactive Floating Product Preview Mockup (Issue #15) */}
+            {/* 🖥️ Live Product Preview Window Mockup */}
             <div className="mt-14 max-w-4xl mx-auto text-left animate-fadeIn">
               <div className="bg-white/95 rounded-3xl border border-slate-200/90 shadow-2xl shadow-indigo-100/50 backdrop-blur-xl overflow-hidden">
                 
@@ -217,7 +228,7 @@ export default function HomePage() {
 
                   </div>
 
-                  {/* Financial & Metric Telemetry Row */}
+                  {/* Telemetry Row */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 border-t border-slate-100">
                     <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/60">
                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Month Attended</span>
@@ -233,7 +244,7 @@ export default function HomePage() {
                     </div>
                     <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/60">
                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Missed Classes</span>
-                      <span className="text-base font-extrabold text-indigo-600">₹0 (Strict Rule)</span>
+                      <span className="text-base font-extrabold text-indigo-600">₹0 (Strict Policy)</span>
                     </div>
                   </div>
 
@@ -246,15 +257,15 @@ export default function HomePage() {
             <div className="mt-14 pt-8 border-t border-slate-200/60 max-w-3xl mx-auto grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
               <div>
                 <div className="text-2xl font-black text-slate-900">200+</div>
-                <div className="text-xs text-slate-500 mt-0.5">Active Students</div>
+                <div className="text-xs text-slate-500 mt-0.5">Enrolled Students</div>
               </div>
               <div>
                 <div className="text-2xl font-black text-slate-900">Strictly 1-on-1</div>
-                <div className="text-xs text-slate-500 mt-0.5">Custom Scheduling</div>
+                <div className="text-xs text-slate-500 mt-0.5">Dedicated Tutoring</div>
               </div>
               <div>
                 <div className="text-2xl font-black text-slate-900">Auto-Attendance</div>
-                <div className="text-xs text-slate-500 mt-0.5">Google Meet Linked</div>
+                <div className="text-xs text-slate-500 mt-0.5">Zero Manual Roll-Call</div>
               </div>
               <div>
                 <div className="text-2xl font-black text-emerald-600">Razorpay & UPI</div>
@@ -265,74 +276,28 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* 🎯 Feature Highlights Section */}
-        <section id="features" className="py-16 bg-white border-y border-slate-200/80">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center max-w-2xl mx-auto mb-12">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-indigo-600">Core Capabilities</h2>
-              <h3 className="text-3xl font-extrabold text-slate-900 mt-1">Built to Eliminate Daily Operational Headaches</h3>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              
-              {/* Feature 1 */}
-              <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200/80 hover:shadow-md transition-shadow">
-                <div className="w-12 h-12 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center mb-4">
-                  <Video className="w-6 h-6" />
-                </div>
-                <h4 className="text-lg font-bold text-slate-900">1-Click Google Meet & Smart Attendance</h4>
-                <p className="text-sm text-slate-500 mt-2">
-                  Teachers paste their Google Meet links. When students click "Join", the system automatically timestamps their entry and marks attendance as Present.
-                </p>
-              </div>
-
-              {/* Feature 2 */}
-              <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200/80 hover:shadow-md transition-shadow">
-                <div className="w-12 h-12 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center mb-4">
-                  <Clock className="w-6 h-6" />
-                </div>
-                <h4 className="text-lg font-bold text-slate-900">Strictly Hourly Grade-Based Billing</h4>
-                <p className="text-sm text-slate-500 mt-2">
-                  No manual math or disputed fees. Fees and salaries calculate automatically: Attended Hours × Grade Hourly Rate. Cancelled classes are strictly ₹0.
-                </p>
-              </div>
-
-              {/* Feature 3 */}
-              <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200/80 hover:shadow-md transition-shadow">
-                <div className="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center mb-4">
-                  <CreditCard className="w-6 h-6" />
-                </div>
-                <h4 className="text-lg font-bold text-slate-900">Automated Razorpay Invoices</h4>
-                <p className="text-sm text-slate-500 mt-2">
-                  Parents pay directly with GPay, PhonePe, Cards, or NetBanking. Invoices update to PAID automatically, generating instant digital receipts.
-                </p>
-              </div>
-
-            </div>
-          </div>
-        </section>
-
         {/* 👥 3 User Portals Section */}
-        <section id="portals" className="py-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <section id="portals" className="py-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 border-t border-slate-200/80">
           <div className="text-center max-w-2xl mx-auto mb-12">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-indigo-600">Role-Based Access</h2>
-            <h3 className="text-3xl font-extrabold text-slate-900 mt-1">Dedicated Portals for Every Member</h3>
+            <h2 className="text-xs font-bold uppercase tracking-wider text-indigo-600">Portal Access</h2>
+            <h3 className="text-3xl font-extrabold text-slate-900 mt-1">Dedicated Logins for Every Academy Role</h3>
+            <p className="text-sm text-slate-500 mt-2">Each user accesses their own role-restricted workspace with appropriate data privacy.</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             
             {/* Student Card */}
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
               <div>
                 <span className="text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  Student Portal
+                  Student & Parent Portal
                 </span>
-                <h4 className="text-xl font-bold text-slate-900 mt-3">For Students & Parents</h4>
+                <h4 className="text-xl font-bold text-slate-900 mt-3">Personal Learning Space</h4>
                 <ul className="mt-3 space-y-2 text-xs text-slate-600">
-                  <li className="flex items-center gap-2">✅ 1-Click "Join Google Meet" button</li>
-                  <li className="flex items-center gap-2">✅ Live attendance history</li>
-                  <li className="flex items-center gap-2">✅ Monthly fee bill with Razorpay "Pay Now"</li>
-                  <li className="flex items-center gap-2">✅ Homework photo upload</li>
+                  <li className="flex items-center gap-2">✅ 1-Click "Join Google Meet" with auto-attendance</li>
+                  <li className="flex items-center gap-2">✅ View verified attended hours and topics covered</li>
+                  <li className="flex items-center gap-2">✅ Monthly fee bill with instant Razorpay / UPI checkout</li>
+                  <li className="flex items-center gap-2">✅ Homework notebook photo uploads</li>
                 </ul>
               </div>
               <Link to="/login" className="mt-6 block text-center py-2.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 transition-colors">
@@ -341,17 +306,17 @@ export default function HomePage() {
             </div>
 
             {/* Teacher Card */}
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
               <div>
                 <span className="text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-blue-50 text-blue-700 border border-blue-200">
-                  Teacher Portal
+                  Tutor Portal
                 </span>
-                <h4 className="text-xl font-bold text-slate-900 mt-3">For Academy Tutors</h4>
+                <h4 className="text-xl font-bold text-slate-900 mt-3">Teacher Operations</h4>
                 <ul className="mt-3 space-y-2 text-xs text-slate-600">
-                  <li className="flex items-center gap-2">✅ View assigned 1-on-1 students</li>
-                  <li className="flex items-center gap-2">✅ Set/Reschedule class & paste Meet link</li>
-                  <li className="flex items-center gap-2">✅ Post-class logging (duration & topics)</li>
-                  <li className="flex items-center gap-2">✅ Live monthly salary tracker</li>
+                  <li className="flex items-center gap-2">✅ View assigned 1-on-1 students and schedule sessions</li>
+                  <li className="flex items-center gap-2">✅ Auto-detect student attendance when they join Meet</li>
+                  <li className="flex items-center gap-2">✅ Submit post-class log (decimal hours & topics)</li>
+                  <li className="flex items-center gap-2">✅ Track monthly accrued teaching compensation</li>
                 </ul>
               </div>
               <Link to="/login" className="mt-6 block text-center py-2.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-blue-50 hover:text-blue-700 transition-colors">
@@ -360,17 +325,17 @@ export default function HomePage() {
             </div>
 
             {/* Admin Card */}
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
               <div>
                 <span className="text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-purple-50 text-purple-700 border border-purple-200">
-                  Admin Console
+                  Management Console
                 </span>
-                <h4 className="text-xl font-bold text-slate-900 mt-3">For Academy Management</h4>
+                <h4 className="text-xl font-bold text-slate-900 mt-3">Academy Administration</h4>
                 <ul className="mt-3 space-y-2 text-xs text-slate-600">
-                  <li className="flex items-center gap-2">✅ Configure grade hourly rate matrix</li>
-                  <li className="flex items-center gap-2">✅ Assign teachers to students</li>
-                  <li className="flex items-center gap-2">✅ Monitor master schedules & logs</li>
-                  <li className="flex items-center gap-2">✅ View revenue, fee invoices & payroll</li>
+                  <li className="flex items-center gap-2">✅ Configure grade hourly rate matrix & institute margins</li>
+                  <li className="flex items-center gap-2">✅ Master audit ledger of all teacher-submitted logs</li>
+                  <li className="flex items-center gap-2">✅ Manage 200+ students and teacher allocations</li>
+                  <li className="flex items-center gap-2">✅ Revenue reconciliation, invoicing & payroll oversight</li>
                 </ul>
               </div>
               <Link to="/login" className="mt-6 block text-center py-2.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-purple-50 hover:text-purple-700 transition-colors">
@@ -395,7 +360,7 @@ export default function HomePage() {
               Portal Login
             </Link>
             <span>&bull;</span>
-            <span className="text-slate-400">Version 1.0 (MVP)</span>
+            <span className="text-slate-400">Secure Internal System</span>
           </div>
         </div>
       </footer>
