@@ -118,8 +118,7 @@ export default function DashboardPage() {
   // Homework Upload state (Student Portal)
   const [uploadedHomeworkFile, setUploadedHomeworkFile] = useState(null);
 
-  // Simulation states
-  const [paymentDone, setPaymentDone] = useState(false);
+  // Feedback state
   const [actionSuccess, setActionSuccess] = useState('');
 
   // Open Profile Modal and populate fields
@@ -688,11 +687,13 @@ export default function DashboardPage() {
                     November Fee Statement
                   </h4>
                   <span className={`text-xs font-bold px-3 py-1 rounded-full ${
-                    paymentDone 
+                    Math.round(Number((monthlyHours ?? 0).toFixed(2)) * (user.hourlyRate || 400)) === 0
                       ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
                       : 'bg-amber-50 text-amber-700 border border-amber-200'
                   }`}>
-                    {paymentDone ? 'PAID' : 'DUE / UNPAID'}
+                    {Math.round(Number((monthlyHours ?? 0).toFixed(2)) * (user.hourlyRate || 400)) === 0 
+                      ? 'NO DUES' 
+                      : 'PAYMENT DUE'}
                   </span>
                 </div>
 
@@ -728,37 +729,37 @@ export default function DashboardPage() {
                   </div>
                 )}
 
-                <div className="mt-5 pt-4 border-t border-slate-100 flex flex-col gap-2">
-                  {paymentDone ? (
-                    <div className="space-y-2">
-                      <div className="text-center py-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm font-bold flex items-center justify-center gap-2">
-                        <CheckCircle2 className="w-5 h-5 text-emerald-600" /> Payment Received &bull; Receipt #INV-2026-8921
+                <div className="mt-5 pt-4 border-t border-slate-100 flex flex-col gap-3">
+                  {/* Disabled Checkout with Honest Roadmap Label */}
+                  <div className="space-y-2">
+                    <button 
+                      disabled
+                      className="w-full py-3 rounded-xl font-bold text-xs bg-slate-100 border border-slate-200 text-slate-400 cursor-not-allowed flex items-center justify-center gap-2 shadow-inner"
+                      title="Online payment gateway checkout is scheduled for v1.0 release"
+                    >
+                      <CreditCard className="w-4 h-4 text-slate-400" />
+                      <span>Online Payments (Razorpay & UPI) — Coming Soon</span>
+                    </button>
+
+                    {/* Direct Academy Offline Settlement Instructions */}
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1">
+                      <div className="flex items-center justify-between text-slate-800 font-bold">
+                        <span>Academy Fee Settlement</span>
+                        <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">Direct Transfer</span>
                       </div>
-                      <button 
-                        onClick={() => setIsReceiptModalOpen(true)}
-                        className="w-full py-2.5 rounded-xl font-bold text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors flex items-center justify-center gap-1.5"
-                      >
-                        <Printer className="w-3.5 h-3.5 text-slate-500" />
-                        <span>View / Print Official Fee Receipt</span>
-                      </button>
+                      <p className="text-slate-500 text-[11px] leading-relaxed">
+                        Pay via direct GPay / PhonePe to Academy Director: <strong className="text-slate-800 font-mono">+91 98000 00000</strong> (UPI: <span className="font-mono text-indigo-700">tuitionhub@icici</span>).
+                      </p>
                     </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <button 
-                        onClick={() => setPaymentDone(true)}
-                        className="w-full py-3 rounded-xl font-bold text-sm bg-gradient-to-r from-indigo-600 to-violet-600 text-white hover:from-indigo-700 hover:to-violet-700 shadow-md shadow-indigo-100 transition-all flex items-center justify-center gap-2"
-                      >
-                        <span>Pay via Razorpay / UPI</span>
-                        <ExternalLink className="w-4 h-4 opacity-80" />
-                      </button>
-                      <button 
-                        onClick={() => setIsReceiptModalOpen(true)}
-                        className="w-full py-2 rounded-xl text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors"
-                      >
-                        Preview Official Invoice Breakdown
-                      </button>
-                    </div>
-                  )}
+
+                    <button 
+                      onClick={() => setIsReceiptModalOpen(true)}
+                      className="w-full py-2.5 rounded-xl font-bold text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition-colors flex items-center justify-center gap-1.5"
+                    >
+                      <Printer className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>View & Print Official Monthly Statement</span>
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -1769,7 +1770,7 @@ export default function DashboardPage() {
                 </div>
                 <div>
                   <h3 className="font-extrabold text-slate-900 text-base">TuitionHub Coaching Academy</h3>
-                  <span className="text-[10px] text-slate-400 font-mono">Official Fee Receipt &bull; #INV-2026-8921</span>
+                  <span className="text-[10px] text-indigo-700 font-mono font-semibold">Official Fee Statement & Proforma Invoice &bull; #INV-2026-8921</span>
                 </div>
               </div>
               <button onClick={() => setIsReceiptModalOpen(false)} className="text-slate-400 hover:text-slate-600">
@@ -1787,7 +1788,9 @@ export default function DashboardPage() {
                 <div>
                   <span className="text-slate-400 text-[10px] uppercase font-bold block">Billing Period</span>
                   <span className="font-bold text-slate-900 block mt-0.5">November 2026</span>
-                  <span className="text-emerald-700 font-semibold">Payment Status: {paymentDone ? 'PAID' : 'DUE'}</span>
+                  <span className="text-amber-800 font-bold bg-amber-50 px-2 py-0.5 rounded border border-amber-200 text-[10px] inline-block mt-1">
+                    Status: PAYMENT DUE (DIRECT SETTLEMENT)
+                  </span>
                 </div>
               </div>
 
@@ -1840,10 +1843,10 @@ export default function DashboardPage() {
                 </table>
               </div>
 
-              <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 font-semibold flex items-center justify-between">
-                <span>Payment Mode: Razorpay / Direct UPI</span>
-                <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-emerald-200 text-emerald-900">
-                  Receipt Verified
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-600 font-medium flex items-center justify-between text-[11px]">
+                <span>Settlement Mode: Direct UPI / Bank Transfer (+91 98000 00000)</span>
+                <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+                  Proforma Statement
                 </span>
               </div>
             </div>
