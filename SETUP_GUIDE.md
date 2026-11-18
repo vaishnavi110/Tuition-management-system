@@ -18,12 +18,9 @@
 
 ## 1. ⚡ 1-Minute Quick Start (For Clients & Demo Presenters)
 
-If the project is already cloned on your machine and dependencies are installed, you can launch the entire platform in **1 click**:
+If the project is already cloned on your machine and dependencies are installed, you can launch the entire platform with one single command:
 
-### On Windows:
-Double-click the **`start-demo.bat`** file located in the project root directory.
-
-*Or open PowerShell / Command Prompt in the project folder and run:*
+Open terminal (PowerShell, Command Prompt, or Bash) in the project root folder and run:
 ```bash
 npm run dev
 ```
@@ -31,7 +28,7 @@ npm run dev
 ### What Happens:
 - 🌐 **Frontend Client** starts on: [http://localhost:3000](http://localhost:3000)
 - ⚙️ **Backend API Server** starts on: [http://localhost:5000](http://localhost:5000)
-- Your default web browser will automatically open to `http://localhost:3000`.
+- Open your browser to [http://localhost:3000](http://localhost:3000) to view the live app.
 
 ---
 
@@ -64,16 +61,9 @@ git checkout dev
 
 ---
 
-### Step 3: Automated Installation (One Command)
-Run the automated installation script to install all packages for the root, frontend, and backend simultaneously:
+### Step 3: Install All Dependencies (Single Command)
+Run the monorepo installation script to install all packages for the root, frontend, and backend simultaneously:
 
-#### Option A: Using Windows Batch Script (Recommended for Windows)
-Double-click **`setup.bat`** in the project root, or run:
-```cmd
-setup.bat
-```
-
-#### Option B: Using npm Command
 ```bash
 npm run install:all
 ```
@@ -212,3 +202,4 @@ npm --prefix client run build
 - **Repository**: [https://github.com/vaishnavi110/Tuition-management-system](https://github.com/vaishnavi110/Tuition-management-system)
 - **Primary Branch**: `dev`
 - **Target Deployment**: Render Managed Cloud (`Static Site + Web Service + PostgreSQL`)
+

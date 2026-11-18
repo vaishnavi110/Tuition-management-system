@@ -14,10 +14,10 @@ A centralized web application designed to transition coaching academies and priv
 | **[Client Walkthrough Guide](./docs/CLIENT_SYSTEM_WALKTHROUGH.md)** | Simple, non-technical explanation of how the system works for Admin, Teacher, and Student. | Client & Academy Management |
 | **[Client Discovery Questionnaire](./docs/Client%20Discovery%20Questionnaire.docx)** | Original baseline questionnaire used during requirements discovery. | Records |
 
-### ⚡ 1-Click Launch (Windows)
-- Run **`setup.bat`**: Automated environment checker and package installer for new laptops.
-- Run **`start-demo.bat`**: 1-click launcher for frontend (port 3000) & backend (port 5000) with auto-browser opening.
-- Command line alternative: `npm run dev` (opens [http://localhost:3000](http://localhost:3000)).
+### ⚡ Quick Start
+- Refer to **[SETUP_GUIDE.md](./SETUP_GUIDE.md)** for complete installation steps and dependencies.
+- Install dependencies: `npm run install:all`
+- Start frontend & backend concurrently: `npm run dev` (opens [http://localhost:3000](http://localhost:3000)).
 
 ---
 
