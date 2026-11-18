@@ -1,14 +1,14 @@
-// In-memory Attendance store for local MVP development
+// In-memory Attendance telemetry store for local MVP development
 let ATTENDANCE_RECORDS = {};
 
 // POST /api/attendance/join
-// Triggered automatically when student clicks "Join Google Meet"
+// Records telemetry when student or teacher clicks "Join Google Meet"
 const recordJoin = (req, res) => {
   const { sessionId } = req.body;
   const user = req.user;
 
   if (!sessionId) {
-    return res.status(400).json({ error: 'sessionId is required to record attendance.' });
+    return res.status(400).json({ error: 'sessionId is required to record meeting link access.' });
   }
 
   const now = new Date();
@@ -16,18 +16,19 @@ const recordJoin = (req, res) => {
 
   const record = {
     sessionId,
-    studentId: user.id,
-    studentName: user.name,
-    status: 'PRESENT',
-    autoDetected: true,
-    joinedAt: now.toISOString(),
-    joinedTimeDisplay: timeFormatted
+    userId: user.id,
+    userName: user.name,
+    userRole: user.role,
+    status: 'LINK_OPENED',
+    linkOpenedAt: now.toISOString(),
+    linkOpenedDisplay: timeFormatted,
+    note: `Meeting link opened at ${timeFormatted}`
   };
 
   ATTENDANCE_RECORDS[sessionId] = record;
 
   res.status(200).json({
-    message: 'Smart Attendance logged successfully!',
+    message: `Meeting link opened at ${timeFormatted}. Teacher will confirm final attendance in post-class log.`,
     record
   });
 };
