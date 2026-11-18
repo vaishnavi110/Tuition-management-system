@@ -4,16 +4,20 @@ A centralized web application designed to transition coaching academies and priv
 
 ---
 
-## 📑 Project Documentation
-
-All formal project specifications and guides are organized under the [`/docs`](./docs) directory:
+## 📑 Project Documentation & Setup
 
 | Document | Description | Target Audience |
 | :--- | :--- | :--- |
+| **[System Setup & Onboarding Guide](./SETUP_GUIDE.md)** | Step-by-step installation, dependencies, and 1-click startup on fresh laptops. | **Clients & Coworkers** |
 | **[Requirements Specification](./docs/PROJECT_REQUIREMENTS_SPECIFICATION.md)** | Confirmed business rules, formula definitions, role permissions, and functional scope. | Technical / Project Management |
 | **[Development Plan & Roadmap](./docs/PROJECT_DEVELOPMENT_PLAN.md)** | Technical architecture, 4-sprint breakdown, demo checkpoints, QA, and deployment plan. | Engineering Team |
 | **[Client Walkthrough Guide](./docs/CLIENT_SYSTEM_WALKTHROUGH.md)** | Simple, non-technical explanation of how the system works for Admin, Teacher, and Student. | Client & Academy Management |
 | **[Client Discovery Questionnaire](./docs/Client%20Discovery%20Questionnaire.docx)** | Original baseline questionnaire used during requirements discovery. | Records |
+
+### ⚡ 1-Click Launch (Windows)
+- Run **`setup.bat`**: Automated environment checker and package installer for new laptops.
+- Run **`start-demo.bat`**: 1-click launcher for frontend (port 3000) & backend (port 5000) with auto-browser opening.
+- Command line alternative: `npm run dev` (opens [http://localhost:3000](http://localhost:3000)).
 
 ---
 
