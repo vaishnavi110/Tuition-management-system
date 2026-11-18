@@ -1,9 +1,11 @@
-// In-memory Attendance telemetry store for local MVP development
+const prisma = require('../prisma');
+
+// In-memory cache for fast UI response
 let ATTENDANCE_RECORDS = {};
 
 // POST /api/attendance/join
-// Records telemetry when student or teacher clicks "Join Google Meet"
-const recordJoin = (req, res) => {
+// Records telemetry directly on Session when student or teacher clicks "Join Google Meet"
+const recordJoin = async (req, res) => {
   const { sessionId } = req.body;
   const user = req.user;
 
@@ -27,6 +29,24 @@ const recordJoin = (req, res) => {
 
   ATTENDANCE_RECORDS[sessionId] = record;
 
+  // Persist directly to Session table in Render PostgreSQL
+  try {
+    const updateData = {};
+    if (user.role === 'STUDENT') {
+      updateData.studentLinkOpenedAt = now;
+    } else {
+      updateData.teacherLinkOpenedAt = now;
+    }
+
+    await prisma.session.update({
+      where: { id: sessionId },
+      data: updateData
+    });
+  } catch (err) {
+    // If sessionId was an in-memory ID or session not found in DB, log cleanly
+    console.warn('Prisma Session link-opened update notice:', err.message);
+  }
+
   res.status(200).json({
     message: `Meeting link opened at ${timeFormatted}. Teacher will confirm final attendance in post-class log.`,
     record
@@ -34,10 +54,32 @@ const recordJoin = (req, res) => {
 };
 
 // GET /api/attendance/session/:sessionId
-const getSessionAttendance = (req, res) => {
+const getSessionAttendance = async (req, res) => {
   const { sessionId } = req.params;
-  const record = ATTENDANCE_RECORDS[sessionId] || null;
 
+  try {
+    const session = await prisma.session.findUnique({
+      where: { id: sessionId }
+    });
+
+    if (session && (session.studentLinkOpenedAt || session.teacherLinkOpenedAt)) {
+      const openedAt = session.studentLinkOpenedAt || session.teacherLinkOpenedAt;
+      const timeFormatted = new Date(openedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      return res.json({
+        record: {
+          sessionId,
+          status: 'LINK_OPENED',
+          linkOpenedAt: openedAt.toISOString(),
+          linkOpenedDisplay: timeFormatted,
+          note: `Meeting link opened at ${timeFormatted}`
+        }
+      });
+    }
+  } catch (err) {
+    console.warn('Prisma getSessionAttendance notice:', err.message);
+  }
+
+  const record = ATTENDANCE_RECORDS[sessionId] || null;
   res.json({ record });
 };
 

@@ -808,8 +808,8 @@ export default function DashboardPage() {
                       <BookOpen className="w-5 h-5 text-indigo-600" />
                       Active Homework Assignment
                     </h4>
-                    <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600">
-                      Due Tomorrow
+                    <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                      Coming Soon in v1.0 (Milestone 2)
                     </span>
                   </div>
 
