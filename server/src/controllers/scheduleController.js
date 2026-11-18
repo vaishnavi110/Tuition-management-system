@@ -17,8 +17,9 @@ let SESSIONS = [
     topic: 'Quadratic Equations (Chapter 4)',
     date: new Date().toISOString().split('T')[0], // Today
     startTime: '17:00',
-    endTime: '18:30',
-    durationHours: 1.5,
+    endTime: '18:15',
+    durationMinutes: 75,
+    durationHours: 1.25,
     meetLink: 'https://meet.google.com/abc-defg-hij',
     status: 'SCHEDULED' // SCHEDULED | COMPLETED | CANCELLED
   },
@@ -34,6 +35,7 @@ let SESSIONS = [
     date: new Date(Date.now() + 86400000).toISOString().split('T')[0], // Tomorrow
     startTime: '16:00',
     endTime: '17:00',
+    durationMinutes: 60,
     durationHours: 1.0,
     meetLink: 'https://meet.google.com/xyz-uvwx-rst',
     status: 'SCHEDULED'
@@ -101,11 +103,18 @@ const createSession = (req, res) => {
     return res.status(400).json({ error: 'Missing required session fields.' });
   }
 
-  // Calculate duration in hours
-  const start = new Date(`1970-01-01T${startTime}:00`);
-  const end = new Date(`1970-01-01T${endTime}:00`);
-  let diffHours = (end - start) / (1000 * 60 * 60);
-  if (diffHours <= 0) diffHours = 1.0;
+  // Calculate duration in exact minutes and strictly validate
+  const [startH, startM] = startTime.split(':').map(Number);
+  const [endH, endM] = endTime.split(':').map(Number);
+  const durationMinutes = (endH * 60 + endM) - (startH * 60 + startM);
+
+  if (isNaN(durationMinutes) || durationMinutes <= 0) {
+    return res.status(400).json({ 
+      error: 'Invalid class time: End time must be strictly later than start time.' 
+    });
+  }
+
+  const durationHours = Number((durationMinutes / 60).toFixed(2));
 
   const newSession = {
     id: `session-${Date.now()}`,
@@ -119,7 +128,8 @@ const createSession = (req, res) => {
     date,
     startTime,
     endTime,
-    durationHours: Number(diffHours.toFixed(1)),
+    durationMinutes,
+    durationHours,
     meetLink: meetLink && meetLink.trim() ? meetLink.trim() : 'https://meet.google.com/new',
     status: 'SCHEDULED'
   };
@@ -137,9 +147,23 @@ const rescheduleSession = (req, res) => {
     return res.status(404).json({ error: 'Class session not found.' });
   }
 
+  const effectiveStart = startTime || session.startTime;
+  const effectiveEnd = endTime || session.endTime;
+  const [startH, startM] = effectiveStart.split(':').map(Number);
+  const [endH, endM] = effectiveEnd.split(':').map(Number);
+  const durationMinutes = (endH * 60 + endM) - (startH * 60 + startM);
+
+  if (isNaN(durationMinutes) || durationMinutes <= 0) {
+    return res.status(400).json({ 
+      error: 'Invalid class time: End time must be strictly later than start time.' 
+    });
+  }
+
   if (date) session.date = date;
   if (startTime) session.startTime = startTime;
   if (endTime) session.endTime = endTime;
+  session.durationMinutes = durationMinutes;
+  session.durationHours = Number((durationMinutes / 60).toFixed(2));
   if (meetLink) session.meetLink = meetLink.trim();
 
   res.json({ message: 'Class rescheduled successfully', session });
