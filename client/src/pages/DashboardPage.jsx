@@ -110,6 +110,11 @@ export default function DashboardPage() {
   const [profileDesignation, setProfileDesignation] = useState('');
   const [isSavingProfile, setIsSavingProfile] = useState(false);
 
+  // Billing error and validation states
+  const [billingError, setBillingError] = useState(null);
+  const [scheduleTimeError, setScheduleTimeError] = useState('');
+  const [logTimeError, setLogTimeError] = useState('');
+
   // Homework Upload state (Student Portal)
   const [uploadedHomeworkFile, setUploadedHomeworkFile] = useState(null);
 
@@ -172,16 +177,26 @@ export default function DashboardPage() {
     }
   };
 
-  // Calculate decimal hours between two HH:MM strings
-  const computeDurationHours = (start, end) => {
-    if (!start || !end) return 1.0;
+  // Calculate exact decimal hours and duration in minutes between two HH:MM strings
+  const computeDurationInfo = (start, end) => {
+    if (!start || !end) return { minutes: 0, hours: 0, isValid: false, error: 'Start and end times are required.' };
     const [sh, sm] = start.split(':').map(Number);
     const [eh, em] = end.split(':').map(Number);
+    if (isNaN(sh) || isNaN(sm) || isNaN(eh) || isNaN(em)) {
+      return { minutes: 0, hours: 0, isValid: false, error: 'Please enter valid HH:MM times.' };
+    }
     const diff = (eh * 60 + em) - (sh * 60 + sm);
-    return diff > 0 ? Number((diff / 60).toFixed(1)) : 1.0;
+    if (diff <= 0) {
+      return { minutes: 0, hours: 0, isValid: false, error: 'End time must be strictly later than start time.' };
+    }
+    const hours = Number((diff / 60).toFixed(2));
+    return { minutes: diff, hours, isValid: true, error: null };
   };
 
-  const currentDuration = computeDurationHours(logStartTime, logEndTime);
+  const logDurationInfo = computeDurationInfo(logStartTime, logEndTime);
+  const currentDuration = logDurationInfo.isValid 
+    ? `${logDurationInfo.hours} hrs (${logDurationInfo.minutes} mins)` 
+    : 'Invalid Time';
 
   // Fetch initial data
   useEffect(() => {
@@ -189,30 +204,34 @@ export default function DashboardPage() {
   }, [user]);
 
   const fetchData = async () => {
+    setBillingError(null);
     try {
       const [gradesRes, sessionsRes, attendanceRes, logsRes] = await Promise.all([
         axios.get('/api/schedule/grades'),
         axios.get('/api/schedule/sessions').catch(() => ({ data: { sessions: [] } })),
         axios.get('/api/attendance/all').catch(() => ({ data: { attendance: {} } })),
-        axios.get('/api/logs/monthly-summary').catch(() => ({ data: { summary: { totalBillableHours: 2.5, logs: [] } } }))
+        axios.get('/api/logs/monthly-summary')
       ]);
 
-      setGrades(gradesRes.data.grades || []);
-      const loadedSessions = sessionsRes.data.sessions || [];
+      setGrades(gradesRes.data?.grades || []);
+      const loadedSessions = sessionsRes.data?.sessions || [];
       setSessions(loadedSessions);
-      setAttendanceRecords(attendanceRes.data.attendance || {});
+      setAttendanceRecords(attendanceRes.data?.attendance || {});
 
-      const summary = logsRes.data.summary || { totalBillableHours: 0, logs: [] };
+      const summary = logsRes.data?.summary || { totalBillableHours: 0, logs: [] };
       setClassLogs(summary.logs || []);
-      setMonthlyHours(summary.totalBillableHours || 0);
+      setMonthlyHours(summary.totalBillableHours !== undefined ? summary.totalBillableHours : 0);
 
       if (loadedSessions.length > 0) {
         setSelectedSessionId(loadedSessions[0].id);
         setLogStartTime(loadedSessions[0].startTime || '17:00');
-        setLogEndTime(loadedSessions[0].endTime || '18:30');
+        setLogEndTime(loadedSessions[0].endTime || '18:15'); // 75 mins demo standard
       }
     } catch (err) {
-      console.warn('Using local state defaults for offline preview');
+      console.error('Failed to load verified billing data', err);
+      setBillingError('Failed to load verified billing records from server. Please refresh or retry.');
+      setMonthlyHours(0);
+      setClassLogs([]);
     } finally {
       setLoading(false);
     }
@@ -244,6 +263,14 @@ export default function DashboardPage() {
   // Handle Post-Class Log Submission
   const handleSubmitPostClassLog = async (e) => {
     e.preventDefault();
+    setLogTimeError('');
+
+    const durationInfo = computeDurationInfo(logStartTime, logEndTime);
+    if (!durationInfo.isValid) {
+      setLogTimeError(durationInfo.error);
+      return;
+    }
+
     setIsSubmittingLog(true);
 
     try {
@@ -266,7 +293,7 @@ export default function DashboardPage() {
       const newLog = res.data.log;
 
       setClassLogs(prev => [newLog, ...prev]);
-      setMonthlyHours(prev => Number((prev + newLog.billableHours).toFixed(1)));
+      setMonthlyHours(prev => Number((prev + newLog.billableHours).toFixed(2)));
       setClassLogged(true);
       setActionSuccess(`🎉 Post-class log saved! ${newLog.billableHours} hrs verified for billing.`);
       setTimeout(() => setActionSuccess(''), 5000);
@@ -280,6 +307,14 @@ export default function DashboardPage() {
   // Schedule a new 1-on-1 session
   const handleCreateSession = async (e) => {
     e.preventDefault();
+    setScheduleTimeError('');
+
+    const durationInfo = computeDurationInfo(startTime, endTime);
+    if (!durationInfo.isValid) {
+      setScheduleTimeError(durationInfo.error);
+      return;
+    }
+
     try {
       const res = await axios.post('/api/schedule/sessions', {
         studentName,
@@ -661,22 +696,37 @@ export default function DashboardPage() {
                   </span>
                 </div>
 
-                <div className="space-y-3 py-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Total Attended Hours:</span>
-                    <strong className="font-semibold text-slate-800">{monthlyHours || 2.5} Hours</strong>
+                {billingError ? (
+                  <div className="p-4 my-2 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
+                      <span>{billingError}</span>
+                    </div>
+                    <button 
+                      onClick={fetchData} 
+                      className="px-2.5 py-1 bg-red-600 text-white rounded-lg text-xs font-bold hover:bg-red-700 shrink-0"
+                    >
+                      Retry
+                    </button>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Hourly Rate ({user.grade || 'Grade 10'}):</span>
-                    <strong className="font-semibold text-slate-800">₹{user.hourlyRate || 400} / Hour</strong>
+                ) : (
+                  <div className="space-y-3 py-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Total Attended Hours:</span>
+                      <strong className="font-semibold text-slate-800">{Number((monthlyHours ?? 0).toFixed(2))} Hours</strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Hourly Rate ({user.grade || 'Grade 10'}):</span>
+                      <strong className="font-semibold text-slate-800">₹{user.hourlyRate || 400} / Hour</strong>
+                    </div>
+                    <div className="flex justify-between pt-3 border-t border-slate-100 text-base">
+                      <span className="font-bold text-slate-900">Total Payable Fee:</span>
+                      <span className="font-extrabold text-indigo-600 text-xl">
+                        ₹{Math.round(Number((monthlyHours ?? 0).toFixed(2)) * (user.hourlyRate || 400)).toLocaleString('en-IN')}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex justify-between pt-3 border-t border-slate-100 text-base">
-                    <span className="font-bold text-slate-900">Total Payable Fee:</span>
-                    <span className="font-extrabold text-indigo-600 text-xl">
-                      ₹{Math.round((monthlyHours || 2.5) * (user.hourlyRate || 400)).toLocaleString('en-IN')}
-                    </span>
-                  </div>
-                </div>
+                )}
 
                 <div className="mt-5 pt-4 border-t border-slate-100 flex flex-col gap-2">
                   {paymentDone ? (
@@ -798,17 +848,32 @@ export default function DashboardPage() {
               </div>
             </div>
 
+            {billingError && (
+              <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-semibold flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
+                  <span>{billingError}</span>
+                </div>
+                <button 
+                  onClick={fetchData} 
+                  className="px-2.5 py-1 bg-red-600 text-white rounded-lg text-xs font-bold hover:bg-red-700 shrink-0"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+
             {/* Teacher Performance & Verified Hours Card */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
                 <span className="text-xs font-semibold text-slate-500">Verified Teaching Hours</span>
-                <div className="text-3xl font-extrabold text-slate-900 mt-1">{monthlyHours || 3.5} hrs</div>
+                <div className="text-3xl font-extrabold text-slate-900 mt-1">{Number((monthlyHours ?? 0).toFixed(2))} hrs</div>
                 <span className="text-[11px] text-emerald-600 font-bold mt-0.5 block">100% verified decimal duration</span>
               </div>
               <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
                 <span className="text-xs font-semibold text-slate-500">Accrued Teacher Payout</span>
                 <div className="text-3xl font-extrabold text-emerald-600 mt-1">
-                  ₹{Math.round((monthlyHours || 3.5) * (user.hourlyRate || 250)).toLocaleString('en-IN')}
+                  ₹{Math.round(Number((monthlyHours ?? 0).toFixed(2)) * (user.hourlyRate || 250)).toLocaleString('en-IN')}
                 </div>
                 <span className="text-[11px] text-slate-400 font-medium mt-0.5 block">Calculated at ₹{user.hourlyRate || 250}/hr</span>
               </div>
@@ -907,7 +972,7 @@ export default function DashboardPage() {
 
                 <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-800 text-xs font-bold self-start sm:self-auto">
                   <Clock className="w-3.5 h-3.5 text-indigo-600" />
-                  <span>Calculated: {isClassPresent ? `${currentDuration} hrs` : '0.0 hrs (Absent)'}</span>
+                  <span>Calculated: {isClassPresent ? currentDuration : '0.0 hrs (Absent - ₹0 charged)'}</span>
                 </div>
               </div>
 
@@ -930,6 +995,13 @@ export default function DashboardPage() {
               ) : (
                 <form onSubmit={handleSubmitPostClassLog} className="space-y-4">
                   
+                  {logTimeError && (
+                    <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-bold flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
+                      <span>{logTimeError}</span>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
                       <label className="text-xs font-bold text-slate-700 block mb-1">Select Scheduled Class</label>
@@ -1034,7 +1106,7 @@ export default function DashboardPage() {
                       className="px-6 py-2.5 rounded-xl font-bold text-sm bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-100 flex items-center gap-2 transition-all"
                     >
                       <CheckCircle2 className="w-4 h-4" />
-                      <span>{isSubmittingLog ? 'Saving Log...' : `Save & Verify Class Log (${isClassPresent ? currentDuration : 0.0} hrs)`}</span>
+                      <span>{isSubmittingLog ? 'Saving Log...' : `Save & Verify Class Log (${isClassPresent && logDurationInfo.isValid ? `${logDurationInfo.hours} hrs` : '0.0 hrs'})`}</span>
                     </button>
                   </div>
                 </form>
@@ -1128,7 +1200,7 @@ export default function DashboardPage() {
               <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
                 <span className="text-xs text-slate-500">Attended Hours</span>
                 <div className="text-3xl font-extrabold text-slate-900 mt-1">
-                  {840 + (monthlyHours || 3.5)} hrs
+                  {840 + Number((monthlyHours ?? 0).toFixed(2))} hrs
                 </div>
                 <span className="text-[11px] text-indigo-600 mt-0.5 block">Zero manual math</span>
               </div>
@@ -1731,23 +1803,38 @@ export default function DashboardPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    <tr>
-                      <td className="py-2.5 px-3 font-semibold text-slate-800">1-on-1 Mathematics (Quadratic Equations)</td>
-                      <td className="py-2.5 px-3">1.5 hrs</td>
-                      <td className="py-2.5 px-3">₹400/hr</td>
-                      <td className="py-2.5 px-3 text-right font-bold">₹600</td>
-                    </tr>
-                    <tr>
-                      <td className="py-2.5 px-3 font-semibold text-slate-800">1-on-1 Mathematics (Linear Equations)</td>
-                      <td className="py-2.5 px-3">1.0 hr</td>
-                      <td className="py-2.5 px-3">₹400/hr</td>
-                      <td className="py-2.5 px-3 text-right font-bold">₹400</td>
-                    </tr>
+                    {classLogs.filter(l => l.isStudentPresent).length === 0 ? (
+                      <tr>
+                        <td colSpan="4" className="py-4 px-3 text-center text-slate-400 italic">
+                          No attended classes recorded for this billing cycle. Total due: ₹0.
+                        </td>
+                      </tr>
+                    ) : (
+                      classLogs.filter(l => l.isStudentPresent).map((log) => {
+                        const durHours = log.durationMinutes ? Number((log.durationMinutes / 60).toFixed(2)) : (log.billableHours || 0);
+                        const rate = user?.hourlyRate || 400;
+                        const lineAmount = Math.round(durHours * rate);
+                        return (
+                          <tr key={log.id}>
+                            <td className="py-2.5 px-3 font-semibold text-slate-800">
+                              {log.subject} ({log.topicsCovered ? (log.topicsCovered.length > 25 ? log.topicsCovered.slice(0, 25) + '...' : log.topicsCovered) : '1-on-1 Class'})
+                            </td>
+                            <td className="py-2.5 px-3">{durHours} hrs</td>
+                            <td className="py-2.5 px-3">₹{rate}/hr</td>
+                            <td className="py-2.5 px-3 text-right font-bold">₹{lineAmount}</td>
+                          </tr>
+                        );
+                      })
+                    )}
                   </tbody>
                   <tfoot className="bg-slate-50 font-bold border-t border-slate-200">
                     <tr>
-                      <td colSpan="3" className="py-2 px-3 text-slate-700">Total Attended Verified Hours:</td>
-                      <td className="py-2 px-3 text-right text-indigo-600 font-black text-sm">₹1,000</td>
+                      <td colSpan="3" className="py-2 px-3 text-slate-700">
+                        Total Attended Verified Hours ({Number((monthlyHours ?? 0).toFixed(2))} hrs):
+                      </td>
+                      <td className="py-2 px-3 text-right text-indigo-600 font-black text-sm">
+                        ₹{Math.round(Number((monthlyHours ?? 0).toFixed(2)) * (user?.hourlyRate || 400)).toLocaleString('en-IN')}
+                      </td>
                     </tr>
                   </tfoot>
                 </table>
@@ -1828,6 +1915,13 @@ export default function DashboardPage() {
                 </div>
               </div>
 
+              {scheduleTimeError && (
+                <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-bold flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
+                  <span>{scheduleTimeError}</span>
+                </div>
+              )}
+
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="text-xs font-bold text-slate-700 block mb-1">Date</label>
@@ -1860,6 +1954,16 @@ export default function DashboardPage() {
                   />
                 </div>
               </div>
+
+              {(() => {
+                const schedDur = computeDurationInfo(startTime, endTime);
+                return schedDur.isValid ? (
+                  <div className="text-[11px] font-bold text-indigo-700 bg-indigo-50 px-3 py-1.5 rounded-lg flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Calculated Duration: {schedDur.hours} hrs ({schedDur.minutes} minutes)</span>
+                  </div>
+                ) : null;
+              })()}
 
               <div>
                 <label className="text-xs font-bold text-slate-700 block mb-1">Google Meet Link</label>
