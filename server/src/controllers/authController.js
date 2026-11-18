@@ -2,6 +2,10 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { JWT_SECRET } = require('../middleware/authMiddleware');
 
+// Valid academy invitation codes for controlled staff onboarding
+const VALID_TEACHER_INVITES = ['TUTOR-2026-INVITE', 'ACADEMY-TUTOR-2026', 'TUTOR-DEMO'];
+const VALID_ADMIN_INVITES = ['ADMIN-SUPER-2026', 'DIRECTOR-2026', 'ADMIN-DEMO'];
+
 // Seed demo users for local testing
 const DEMO_USERS = [
   {
@@ -47,16 +51,35 @@ const register = async (req, res) => {
     emailOrPhone, 
     password, 
     role = 'STUDENT',
+    inviteCode,
     grade,
     subject,
     phone,
     parentName,
     parentPhone,
-    qualification
+    qualification,
+    schoolName,
+    designation
   } = req.body;
 
   if (!name || !emailOrPhone || !password) {
     return res.status(400).json({ error: 'Name, Email/Mobile, and Password are required.' });
+  }
+
+  // 🔒 Security: Student registration is 100% public. Teacher & Admin registration REQUIRE an authorized invitation code!
+  const normalizedRole = role.toUpperCase();
+  if (normalizedRole === 'TEACHER') {
+    if (!inviteCode || !VALID_TEACHER_INVITES.includes(inviteCode.trim().toUpperCase())) {
+      return res.status(403).json({ 
+        error: 'Teacher registration is strictly by authorized invitation only. Please enter a valid Tutor Invitation Code issued by the Academy Director.' 
+      });
+    }
+  } else if (normalizedRole === 'ADMIN') {
+    if (!inviteCode || !VALID_ADMIN_INVITES.includes(inviteCode.trim().toUpperCase())) {
+      return res.status(403).json({ 
+        error: 'Administrative registration is strictly restricted. Please provide a valid Master Academy Authorization Key.' 
+      });
+    }
   }
 
   // Check for duplicate user
@@ -69,9 +92,9 @@ const register = async (req, res) => {
 
   // Determine default rates based on role and grade
   let defaultHourlyRate = 400;
-  if (role === 'TEACHER') {
+  if (normalizedRole === 'TEACHER') {
     defaultHourlyRate = 250;
-  } else if (role === 'STUDENT') {
+  } else if (normalizedRole === 'STUDENT') {
     if (grade?.includes('11') || grade?.includes('12')) {
       defaultHourlyRate = 600;
     } else if (grade?.includes('8') || grade?.includes('9')) {
@@ -85,16 +108,18 @@ const register = async (req, res) => {
   const passwordHash = await bcrypt.hash(password, salt);
 
   const newUser = {
-    id: `user-${role.toLowerCase()}-${Date.now()}`,
+    id: `user-${normalizedRole.toLowerCase()}-${Date.now()}`,
     name: name.trim(),
     emailOrPhone: emailOrPhone.trim().toLowerCase(),
-    role: role.toUpperCase(),
-    grade: grade || (role === 'STUDENT' ? 'Grade 10' : undefined),
-    subject: subject || (role === 'TEACHER' ? 'Mathematics' : undefined),
+    role: normalizedRole,
+    grade: grade || (normalizedRole === 'STUDENT' ? 'Grade 10' : undefined),
+    subject: subject || (normalizedRole === 'TEACHER' ? 'Mathematics' : undefined),
     phone: phone || '+91 98000 00000',
-    parentName: parentName || (role === 'STUDENT' ? 'Parent / Guardian' : undefined),
-    parentPhone: parentPhone || (role === 'STUDENT' ? '+91 98000 00000' : undefined),
-    qualification: qualification || (role === 'TEACHER' ? 'Graduate Tutor' : undefined),
+    parentName: parentName || (normalizedRole === 'STUDENT' ? 'Parent / Guardian' : undefined),
+    parentPhone: parentPhone || (normalizedRole === 'STUDENT' ? '+91 98000 00000' : undefined),
+    schoolName: schoolName || (normalizedRole === 'STUDENT' ? 'Delhi Public School' : undefined),
+    qualification: qualification || (normalizedRole === 'TEACHER' ? 'Graduate Tutor' : undefined),
+    designation: designation || (normalizedRole === 'ADMIN' ? 'Operations Manager' : undefined),
     hourlyRate: defaultHourlyRate,
     passwordHash
   };
@@ -127,7 +152,9 @@ const register = async (req, res) => {
       phone: newUser.phone,
       parentName: newUser.parentName,
       parentPhone: newUser.parentPhone,
-      qualification: newUser.qualification
+      schoolName: newUser.schoolName,
+      qualification: newUser.qualification,
+      designation: newUser.designation
     }
   });
 };
@@ -181,7 +208,10 @@ const login = async (req, res) => {
       phone: user.phone,
       parentName: user.parentName,
       parentPhone: user.parentPhone,
-      qualification: user.qualification
+      qualification: user.qualification,
+      designation: user.designation,
+      bankAccount: user.bankAccount,
+      schoolName: user.schoolName
     }
   });
 };
@@ -220,7 +250,17 @@ const updateProfile = async (req, res) => {
     return res.status(404).json({ error: 'User profile not found.' });
   }
 
-  const { name, phone, parentName, parentPhone, subject, qualification, schoolName, bankAccount } = req.body;
+  const { 
+    name, 
+    phone, 
+    parentName, 
+    parentPhone, 
+    subject, 
+    qualification, 
+    schoolName, 
+    bankAccount,
+    designation
+  } = req.body;
 
   if (name) DEMO_USERS[userIndex].name = name.trim();
   if (phone) DEMO_USERS[userIndex].phone = phone.trim();
@@ -230,6 +270,7 @@ const updateProfile = async (req, res) => {
   if (qualification) DEMO_USERS[userIndex].qualification = qualification.trim();
   if (schoolName) DEMO_USERS[userIndex].schoolName = schoolName.trim();
   if (bankAccount) DEMO_USERS[userIndex].bankAccount = bankAccount.trim();
+  if (designation) DEMO_USERS[userIndex].designation = designation.trim();
 
   const updated = DEMO_USERS[userIndex];
 
@@ -261,7 +302,11 @@ const getDemoUsers = (req, res) => {
       { role: 'ADMIN', email: 'admin@tuition.com', password: 'admin123', label: 'Admin Console' },
       { role: 'TEACHER', email: 'teacher@tuition.com', password: 'teacher123', label: 'Teacher Portal' },
       { role: 'STUDENT', email: 'student@tuition.com', password: 'student123', label: 'Student Portal' }
-    ]
+    ],
+    invitationCodes: {
+      teacher: 'TUTOR-2026-INVITE',
+      admin: 'ADMIN-SUPER-2026'
+    }
   });
 };
 
