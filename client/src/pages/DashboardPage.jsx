@@ -114,6 +114,11 @@ export default function DashboardPage() {
   const [billingError, setBillingError] = useState(null);
   const [scheduleTimeError, setScheduleTimeError] = useState('');
   const [logTimeError, setLogTimeError] = useState('');
+  const [logSubmitError, setLogSubmitError] = useState(null);
+
+  // Attendance telemetry and error states
+  const [attendanceError, setAttendanceError] = useState(null);
+  const [failedSessionRetry, setFailedSessionRetry] = useState(null);
 
   // Homework Upload state (Student Portal)
   const [uploadedHomeworkFile, setUploadedHomeworkFile] = useState(null);
@@ -236,33 +241,47 @@ export default function DashboardPage() {
     }
   };
 
-  // Auto-Attendance Trigger on "Join Google Meet" click
+  // Record "Meeting link opened" on "Join Google Meet" click
   const handleJoinClass = async (session) => {
+    setAttendanceError(null);
+    setFailedSessionRetry(null);
+
+    // Open meet link in a new window immediately
+    window.open(session.meetLink || 'https://meet.google.com/new', '_blank');
+
     try {
       const res = await axios.post('/api/attendance/join', { sessionId: session.id });
       setAttendanceRecords(prev => ({ ...prev, [session.id]: res.data.record }));
-      setActionSuccess(`✅ Smart Attendance logged! Auto-detected entry at ${res.data.record.joinedTimeDisplay}`);
+      setActionSuccess(`📡 Meeting link opened at ${res.data.record.linkOpenedDisplay}. Final attendance confirmed by teacher post-class.`);
       setTimeout(() => setActionSuccess(''), 5000);
     } catch (err) {
-      const now = new Date();
-      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      setAttendanceRecords(prev => ({
-        ...prev,
-        [session.id]: {
-          status: 'PRESENT',
-          autoDetected: true,
-          joinedTimeDisplay: timeStr
-        }
-      }));
-    } finally {
-      window.open(session.meetLink || 'https://meet.google.com/new', '_blank');
+      console.error('Failed to log meeting link access', err);
+      // DO NOT fabricate fake PRESENT state!
+      setAttendanceError(`Failed to save meeting link access for "${session.subject}". Server did not respond.`);
+      setFailedSessionRetry(session);
+    }
+  };
+
+  // Retry action if attendance logging failed
+  const handleRetryJoinLog = async () => {
+    if (!failedSessionRetry) return;
+    try {
+      const res = await axios.post('/api/attendance/join', { sessionId: failedSessionRetry.id });
+      setAttendanceRecords(prev => ({ ...prev, [failedSessionRetry.id]: res.data.record }));
+      setActionSuccess(`📡 Meeting link access logged on retry at ${res.data.record.linkOpenedDisplay}.`);
+      setAttendanceError(null);
+      setFailedSessionRetry(null);
+      setTimeout(() => setActionSuccess(''), 5000);
+    } catch (err) {
+      setAttendanceError('Retry failed: Unable to connect to server. Please check your network.');
     }
   };
 
   // Handle Post-Class Log Submission
   const handleSubmitPostClassLog = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     setLogTimeError('');
+    setLogSubmitError(null);
 
     const durationInfo = computeDurationInfo(logStartTime, logEndTime);
     if (!durationInfo.isValid) {
@@ -297,7 +316,7 @@ export default function DashboardPage() {
       setActionSuccess(`🎉 Post-class log saved! ${newLog.billableHours} hrs verified for billing.`);
       setTimeout(() => setActionSuccess(''), 5000);
     } catch (err) {
-      alert(err.response?.data?.error || 'Failed to submit post-class log');
+      setLogSubmitError(err.response?.data?.error || 'Failed to submit post-class log. Tap retry to try again.');
     } finally {
       setIsSubmittingLog(false);
     }
@@ -561,6 +580,24 @@ export default function DashboardPage() {
               </div>
             </div>
 
+            {/* Error and Retry Banner for Attendance Telemetry */}
+            {attendanceError && (
+              <div className="p-4 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-xs font-semibold flex items-center justify-between gap-3 shadow-sm">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
+                  <span>{attendanceError}</span>
+                </div>
+                {failedSessionRetry && (
+                  <button 
+                    onClick={handleRetryJoinLog}
+                    className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg text-xs shrink-0 transition-colors"
+                  >
+                    Retry Saving Telemetry
+                  </button>
+                )}
+              </div>
+            )}
+
             {/* List of Scheduled Classes with Smart Auto-Attendance */}
             <div className="space-y-4">
               <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
@@ -570,20 +607,20 @@ export default function DashboardPage() {
 
               {sessions.filter(s => s.status !== 'CANCELLED').map((s) => {
                 const attendance = attendanceRecords[s.id];
-                const isPresent = attendance?.status === 'PRESENT';
+                const linkOpened = attendance?.status === 'LINK_OPENED' || attendance?.linkOpenedDisplay;
 
                 return (
                   <div key={s.id} className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
                     <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
                       <div>
                         <div className="flex items-center gap-2 mb-2">
-                          <span className={`w-2.5 h-2.5 rounded-full ${isPresent ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500 animate-ping'}`} />
+                          <span className={`w-2.5 h-2.5 rounded-full ${linkOpened ? 'bg-blue-500 animate-pulse' : 'bg-amber-500 animate-ping'}`} />
                           <span className={`text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${
-                            isPresent 
-                              ? 'text-emerald-700 bg-emerald-50 border-emerald-200' 
+                            linkOpened 
+                              ? 'text-blue-700 bg-blue-50 border-blue-200' 
                               : 'text-indigo-700 bg-indigo-50 border-indigo-200'
                           }`}>
-                            {isPresent ? 'Present (Auto-detected)' : `Scheduled: ${s.date}`}
+                            {linkOpened ? `Meeting link opened at ${attendance.linkOpenedDisplay}` : `Scheduled: ${s.date}`}
                           </span>
                         </div>
                         <h4 className="text-xl font-bold text-slate-900">{s.subject}: {s.topic}</h4>
@@ -591,10 +628,10 @@ export default function DashboardPage() {
                           Teacher: <strong className="text-slate-800">{s.teacherName}</strong> &bull; Time: <strong>{s.startTime} – {s.endTime} ({s.durationHours} hrs)</strong>
                         </p>
 
-                        {isPresent && (
-                          <div className="mt-2 text-xs font-bold text-emerald-600 flex items-center gap-1.5">
-                            <CheckCircle2 className="w-4 h-4" />
-                            <span>Smart Attendance Logged: Joined at {attendance.joinedTimeDisplay}</span>
+                        {linkOpened && (
+                          <div className="mt-2 text-xs font-medium text-blue-700 flex items-center gap-1.5 bg-blue-50/70 px-2.5 py-1 rounded-lg border border-blue-100">
+                            <Clock className="w-3.5 h-3.5 text-blue-600" />
+                            <span>Meeting link opened at {attendance.linkOpenedDisplay}. Final attendance confirmed by teacher post-class.</span>
                           </div>
                         )}
                       </div>
@@ -603,17 +640,17 @@ export default function DashboardPage() {
                         <button 
                           onClick={() => handleJoinClass(s)}
                           className={`w-full md:w-auto px-7 py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2.5 transition-all shadow-md ${
-                            isPresent 
-                              ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-200' 
+                            linkOpened 
+                              ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-200' 
                               : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-200'
                           }`}
                         >
                           <Video className="w-4 h-4" />
-                          <span>{isPresent ? 'Re-Join Google Meet' : 'Join Google Meet'}</span>
+                          <span>{linkOpened ? 'Re-Open Google Meet' : 'Join Google Meet'}</span>
                           <ExternalLink className="w-3.5 h-3.5 opacity-75" />
                         </button>
                         <span className="text-[11px] text-slate-400 mt-1 text-center">
-                          ⚡ Click automatically records attendance
+                          Opens 1-on-1 Google Meet classroom
                         </span>
                       </div>
                     </div>
@@ -898,7 +935,7 @@ export default function DashboardPage() {
               <div className="space-y-3">
                 {sessions.map((s) => {
                   const attendance = attendanceRecords[s.id];
-                  const hasJoined = attendance?.status === 'PRESENT';
+                  const linkOpened = attendance?.status === 'LINK_OPENED' || attendance?.linkOpenedDisplay;
 
                   return (
                     <div key={s.id} className="p-4 rounded-xl border border-slate-100 bg-slate-50/60 hover:bg-slate-50 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -906,10 +943,10 @@ export default function DashboardPage() {
                         <div className="flex items-center gap-2">
                           <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
                             s.status === 'CANCELLED' ? 'bg-red-50 text-red-700 border border-red-200' :
-                            hasJoined ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 
+                            linkOpened ? 'bg-blue-50 text-blue-700 border border-blue-200' : 
                             'bg-indigo-50 text-indigo-700 border border-indigo-200'
                           }`}>
-                            {s.status === 'CANCELLED' ? 'CANCELLED (0 hrs)' : hasJoined ? 'STUDENT PRESENT' : s.status}
+                            {s.status === 'CANCELLED' ? 'CANCELLED (0 hrs)' : linkOpened ? 'LINK OPENED' : s.status}
                           </span>
                           <span className="text-xs font-semibold text-slate-500">{s.date} &bull; {s.startTime} - {s.endTime} ({s.durationHours} hrs)</span>
                         </div>
@@ -918,11 +955,11 @@ export default function DashboardPage() {
                           {s.studentName} ({s.grade}) &bull; {s.subject}
                         </h4>
 
-                        {/* Live Attendance Confirmation */}
-                        {hasJoined ? (
-                          <div className="text-xs font-bold text-emerald-600 flex items-center gap-1.5 mt-1">
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                            <span>Auto-Attendance Verified: Joined at {attendance.joinedTimeDisplay}</span>
+                        {/* Meeting Link Telemetry */}
+                        {linkOpened ? (
+                          <div className="text-xs font-semibold text-blue-700 flex items-center gap-1.5 mt-1">
+                            <Clock className="w-3.5 h-3.5 text-blue-600" />
+                            <span>Meeting link opened at {attendance.linkOpenedDisplay}. (Please confirm attendance below).</span>
                           </div>
                         ) : (
                           <div className="text-xs text-slate-400 flex items-center gap-2 mt-1">
@@ -1052,26 +1089,63 @@ export default function DashboardPage() {
 
                   {/* Attendance Checkbox with strict zero-charge override */}
                   <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/50">
-                    <label className="flex items-center space-x-3 cursor-pointer">
-                      <input 
-                        type="checkbox" 
-                        checked={isClassPresent}
-                        onChange={(e) => setIsClassPresent(e.target.checked)}
-                        className="w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500" 
-                      />
-                      <div>
-                        <span className="text-sm font-bold text-slate-900 block">
-                          Student Present (Auto-detected from Google Meet Join)
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2.5">
+                      <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                        Teacher Final Attendance Confirmation
+                      </span>
+                      {attendanceRecords[selectedSessionId]?.linkOpenedDisplay && (
+                        <span className="text-[11px] font-bold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded border border-blue-200 self-start sm:self-auto flex items-center gap-1">
+                          <Clock className="w-3 h-3 text-blue-600" />
+                          <span>Student opened link at {attendanceRecords[selectedSessionId].linkOpenedDisplay}</span>
                         </span>
-                        <span className="text-xs text-slate-500 block">
-                          Uncheck if student did not attend or cancelled last minute.
-                        </span>
-                      </div>
-                    </label>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
+                      <label className={`p-3 rounded-xl border cursor-pointer flex items-center gap-2.5 transition-all ${
+                        isClassPresent 
+                          ? 'border-emerald-500 bg-emerald-50/70 text-emerald-900 font-bold shadow-sm' 
+                          : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                      }`}>
+                        <input 
+                          type="radio" 
+                          name="teacherAttendanceConfirm"
+                          checked={isClassPresent === true}
+                          onChange={() => setIsClassPresent(true)}
+                          className="w-4 h-4 text-emerald-600 focus:ring-emerald-500" 
+                        />
+                        <div>
+                          <span className="text-xs block font-bold">Confirmed Present</span>
+                          <span className="text-[10px] text-emerald-700 font-medium block">
+                            Billable: {logDurationInfo.isValid ? `${logDurationInfo.hours} hrs (${logDurationInfo.minutes} mins)` : 'Valid duration'}
+                          </span>
+                        </div>
+                      </label>
+
+                      <label className={`p-3 rounded-xl border cursor-pointer flex items-center gap-2.5 transition-all ${
+                        !isClassPresent 
+                          ? 'border-red-500 bg-red-50/70 text-red-900 font-bold shadow-sm' 
+                          : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                      }`}>
+                        <input 
+                          type="radio" 
+                          name="teacherAttendanceConfirm"
+                          checked={isClassPresent === false}
+                          onChange={() => setIsClassPresent(false)}
+                          className="w-4 h-4 text-red-600 focus:ring-red-500" 
+                        />
+                        <div>
+                          <span className="text-xs block font-bold">Student Absent / Cancelled</span>
+                          <span className="text-[10px] text-red-700 font-medium block">
+                            Strict Zero-Fee: 0.0 hrs billed
+                          </span>
+                        </div>
+                      </label>
+                    </div>
 
                     {!isClassPresent && (
-                      <div className="mt-3 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs font-bold flex items-center gap-2">
-                        <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                      <div className="mt-3 p-2.5 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs font-semibold flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
                         <span>Academy Policy Applied: 0.0 billable hours will be charged for absent / missed classes.</span>
                       </div>
                     )}
@@ -1099,6 +1173,22 @@ export default function DashboardPage() {
                       className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm bg-white"
                     />
                   </div>
+
+                  {logSubmitError && (
+                    <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-semibold flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
+                        <span>{logSubmitError}</span>
+                      </div>
+                      <button 
+                        type="button" 
+                        onClick={handleSubmitPostClassLog} 
+                        className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg text-xs shrink-0 transition-colors"
+                      >
+                        Retry Saving
+                      </button>
+                    </div>
+                  )}
 
                   <div className="flex justify-end pt-2">
                     <button 
