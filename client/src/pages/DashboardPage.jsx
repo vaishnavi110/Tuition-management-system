@@ -37,7 +37,8 @@ import {
   Mail,
   Building,
   Award,
-  ShieldCheck
+  ShieldCheck,
+  Info
 } from 'lucide-react';
 
 export default function DashboardPage() {
@@ -211,10 +212,10 @@ export default function DashboardPage() {
     setBillingError(null);
     try {
       const [gradesRes, sessionsRes, attendanceRes, logsRes] = await Promise.all([
-        axios.get('/api/schedule/grades'),
+        axios.get('/api/schedule/grades').catch(() => ({ data: { grades: [] } })),
         axios.get('/api/schedule/sessions').catch(() => ({ data: { sessions: [] } })),
         axios.get('/api/attendance/all').catch(() => ({ data: { attendance: {} } })),
-        axios.get('/api/logs/monthly-summary')
+        axios.get('/api/logs/monthly-summary').catch(() => ({ data: { summary: { totalBillableHours: 0, logs: [] } } }))
       ]);
 
       setGrades(gradesRes.data?.grades || []);

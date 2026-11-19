@@ -1,6 +1,6 @@
 const http = require('http');
 
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = process.env.API_BASE || 'http://127.0.0.1:5000/api';
 
 // Helper for making HTTP requests
 function request(method, path, body = null, token = null) {
