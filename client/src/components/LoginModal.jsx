@@ -44,8 +44,8 @@ export default function LoginModal({ isOpen, onClose }) {
           <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-600 flex items-center justify-center text-white mx-auto mb-3 shadow-md shadow-indigo-100">
             <GraduationCap className="w-6 h-6" />
           </div>
-          <h3 className="text-2xl font-black text-slate-900 tracking-tight">Portal Login</h3>
-          <p className="text-xs text-slate-500 mt-1">Sign in with your email or mobile credentials</p>
+          <h3 className="text-2xl font-black text-slate-900 tracking-tight">Sign In</h3>
+          <p className="text-xs text-slate-500 mt-1">Sign in to your academy account</p>
         </div>
 
         {/* Error Alert */}
@@ -98,10 +98,10 @@ export default function LoginModal({ isOpen, onClose }) {
           </button>
         </form>
 
-        {/* 1-Click Fast Demo Testing Section */}
+        {/* Demo Testing Section */}
         <div className="mt-6 pt-5 border-t border-slate-100">
           <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 text-center mb-2.5">
-            1-Click Demo Accounts (Fast Testing)
+            Demo Accounts &bull; Select Role
           </p>
           <div className="grid grid-cols-3 gap-2">
             <button

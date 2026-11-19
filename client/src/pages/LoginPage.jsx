@@ -76,8 +76,8 @@ export default function LoginPage() {
             <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-600 flex items-center justify-center text-white mx-auto mb-3 shadow-md shadow-indigo-100">
               <GraduationCap className="w-6 h-6" />
             </div>
-            <h2 className="text-2xl font-black text-slate-900 tracking-tight">Portal Sign In</h2>
-            <p className="text-xs text-slate-500 mt-1">Sign in with your registered academy credentials</p>
+            <h2 className="text-2xl font-black text-slate-900 tracking-tight">Sign In</h2>
+            <p className="text-xs text-slate-500 mt-1">Sign in to your academy account</p>
           </div>
 
           {/* Error Banner */}
@@ -125,7 +125,7 @@ export default function LoginPage() {
               disabled={isSubmitting}
               className="w-full py-3.5 rounded-xl font-bold text-sm bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white shadow-md shadow-indigo-100 transition-all flex items-center justify-center gap-2 disabled:opacity-60"
             >
-              <span>{isSubmitting ? 'Verifying...' : 'Sign In to Dashboard'}</span>
+              <span>{isSubmitting ? 'Signing in...' : 'Sign In'}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </form>
@@ -138,10 +138,10 @@ export default function LoginPage() {
             </Link>
           </div>
 
-          {/* 1-Click Fast Demo Testing Section */}
+          {/* Demo Testing Section */}
           <div className="mt-8 pt-6 border-t border-slate-100">
             <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 text-center mb-3">
-              Fast Testing &bull; 1-Click Role Login
+              Demo Access &bull; Select Role
             </p>
             <div className="grid grid-cols-3 gap-2">
               <button
@@ -178,7 +178,7 @@ export default function LoginPage() {
 
       {/* Footer */}
       <footer className="text-center text-xs text-slate-400 mt-8">
-        TuitionHub Management &bull; Private & Secure Portal
+        TuitionHub Academy &bull; Private Portal
       </footer>
 
     </div>
