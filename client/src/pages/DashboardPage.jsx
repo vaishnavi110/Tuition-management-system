@@ -159,6 +159,22 @@ export default function DashboardPage() {
   // Homework Upload state (Student Portal)
   const [uploadedHomeworkFile, setUploadedHomeworkFile] = useState(null);
 
+  // Copy state for payment instructions
+  const [copiedUpi, setCopiedUpi] = useState(false);
+  const [copiedPhone, setCopiedPhone] = useState(false);
+
+  const handleCopyUpi = () => {
+    navigator.clipboard.writeText('tuitionhub@icici');
+    setCopiedUpi(true);
+    setTimeout(() => setCopiedUpi(false), 2000);
+  };
+
+  const handleCopyPhone = () => {
+    navigator.clipboard.writeText('+91 98000 00000');
+    setCopiedPhone(true);
+    setTimeout(() => setCopiedPhone(false), 2000);
+  };
+
   // Feedback state
   const [actionSuccess, setActionSuccess] = useState('');
 
@@ -950,31 +966,33 @@ export default function DashboardPage() {
         {role === 'STUDENT' && (
           <div className="space-y-6 max-w-5xl mx-auto animate-fadeIn">
             
-            {/* Header Greeting */}
-            <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-                  Welcome back, {user.name} 👋
-                </h2>
-                <p className="text-sm text-slate-500 mt-1">
-                  {user.grade || 'Grade 10'} &bull; Mathematics &bull; Fee rate: ₹{user.hourlyRate || 400} per hour
-                </p>
-              </div>
+            {/* Header Greeting (on Scheduled Classes & Class History views) */}
+            {(activeTab === 'CLASSES' || activeTab === 'HISTORY') && (
+              <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+                    Welcome back, {user.name} 👋
+                  </h2>
+                  <p className="text-sm text-slate-500 mt-1">
+                    {user.grade || 'Grade 10'} &bull; Mathematics &bull; Fee rate: ₹{user.hourlyRate || 400} per hour
+                  </p>
+                </div>
 
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={openProfileModal}
-                  className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1.5 transition-colors"
-                >
-                  <User className="w-3.5 h-3.5 text-slate-600" />
-                  <span>Student Profile</span>
-                </button>
-                <div className="flex items-center space-x-2 text-xs font-semibold px-3 py-2 rounded-xl bg-indigo-50 text-indigo-700 border border-indigo-200">
-                  <Clock className="w-4 h-4 text-indigo-500" />
-                  <span>Today's Class Ready</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={openProfileModal}
+                    className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1.5 transition-colors"
+                  >
+                    <User className="w-3.5 h-3.5 text-slate-600" />
+                    <span>Student Profile</span>
+                  </button>
+                  <div className="flex items-center space-x-2 text-xs font-semibold px-3 py-2 rounded-xl bg-indigo-50 text-indigo-700 border border-indigo-200">
+                    <Clock className="w-4 h-4 text-indigo-500" />
+                    <span>Today's Class Ready</span>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
             {/* Error and Retry Banner for Attendance Telemetry */}
             {attendanceError && (
@@ -1115,27 +1133,48 @@ export default function DashboardPage() {
 
             )}
 
-            {/* Tab 3: Monthly Fee Bill */}
+            {/* Tab 3: Monthly Fee Bill — Full-Page UI */}
             {activeTab === 'FEES' && (
-              <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200/80 shadow-sm max-w-2xl">
-                <div className="flex items-center justify-between mb-4">
-                  <h4 className="font-bold text-base flex items-center gap-2 text-slate-900">
-                    <CreditCard className="w-5 h-5 text-indigo-600" />
-                    November Fee Bill
-                  </h4>
-                  <span className={`text-xs font-bold px-3 py-1 rounded-full ${
-                    Math.round(Number((monthlyHours ?? 0).toFixed(2)) * (user.hourlyRate || 400)) === 0
-                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
-                      : 'bg-amber-50 text-amber-700 border border-amber-200'
-                  }`}>
-                    {Math.round(Number((monthlyHours ?? 0).toFixed(2)) * (user.hourlyRate || 400)) === 0 
-                      ? 'No amount due' 
-                      : 'Payment due'}
-                  </span>
+              <div className="space-y-6 animate-fadeIn">
+                
+                {/* Full-Page Bill Banner */}
+                <div className="bg-white p-6 sm:p-7 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                        Official Fee Statement &bull; November 2026
+                      </span>
+                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${
+                        Math.round(Number((monthlyHours ?? 0).toFixed(2)) * (user.hourlyRate || 400)) === 0
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                          : 'bg-amber-50 text-amber-700 border border-amber-200'
+                      }`}>
+                        {Math.round(Number((monthlyHours ?? 0).toFixed(2)) * (user.hourlyRate || 400)) === 0 
+                          ? 'No amount due' 
+                          : 'Payment due'}
+                      </span>
+                    </div>
+                    <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+                      Monthly Fee Bill
+                    </h2>
+                    <p className="text-xs sm:text-sm text-slate-500 mt-1">
+                      Student: <strong className="text-slate-800">{user.name}</strong> &bull; {user.grade || 'Grade 10'} &bull; Fee Rate: <strong>₹{user.hourlyRate || 400} per hour</strong>
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => setIsReceiptModalOpen(true)}
+                      className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center gap-2 shadow-md shadow-indigo-100 transition-all"
+                    >
+                      <Printer className="w-4 h-4" />
+                      <span>View Official Receipt</span>
+                    </button>
+                  </div>
                 </div>
 
-                {billingError ? (
-                  <div className="p-4 my-2 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center justify-between gap-3">
+                {billingError && (
+                  <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-semibold flex items-center justify-between gap-3 shadow-sm">
                     <div className="flex items-center gap-2">
                       <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
                       <span>{billingError}</span>
@@ -1147,117 +1186,475 @@ export default function DashboardPage() {
                       Retry
                     </button>
                   </div>
-                ) : (
-                  <div className="space-y-3 py-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Total Attended Hours:</span>
-                      <strong className="font-semibold text-slate-800">{Number((monthlyHours ?? 0).toFixed(2))} Hours</strong>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Fee Rate ({user.grade || 'Grade 10'}):</span>
-                      <strong className="font-semibold text-slate-800">₹{user.hourlyRate || 400} per hour</strong>
-                    </div>
-                    <div className="flex justify-between pt-3 border-t border-slate-100 text-base">
-                      <span className="font-bold text-slate-900">Total Payable Fee:</span>
-                      <span className="font-extrabold text-indigo-600 text-xl">
-                        ₹{Math.round(Number((monthlyHours ?? 0).toFixed(2)) * (user.hourlyRate || 400)).toLocaleString('en-IN')}
-                      </span>
-                    </div>
-                  </div>
                 )}
 
-                <div className="mt-5 pt-4 border-t border-slate-100 flex flex-col gap-3">
-                  {/* Disabled Checkout */}
-                  <div className="space-y-2">
-                    <button 
-                      disabled
-                      className="w-full py-3 rounded-xl font-bold text-xs bg-slate-100 border border-slate-200 text-slate-400 cursor-not-allowed flex items-center justify-center gap-2 shadow-inner"
-                      title="Online payment gateway checkout is scheduled for a future update"
-                    >
-                      <CreditCard className="w-4 h-4 text-slate-400" />
-                      <span>Online Payments (UPI & Cards) — Planned for later</span>
-                    </button>
+                {/* 4 Summary KPI Cards */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
+                    <span className="text-xs font-semibold text-slate-500 flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5 text-indigo-600" /> Attended Hours
+                    </span>
+                    <div className="text-3xl font-extrabold text-slate-900 mt-1">
+                      {Number((monthlyHours ?? 0).toFixed(2))} hrs
+                    </div>
+                    <span className="text-[11px] text-emerald-600 font-bold mt-0.5 block">Verified class logs</span>
+                  </div>
 
-                    {/* Direct Academy Offline Payment Instructions */}
-                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1">
-                      <div className="flex items-center justify-between text-slate-800 font-bold">
-                        <span>Academy Fee Payment</span>
-                        <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">Direct Transfer</span>
-                      </div>
-                      <p className="text-slate-500 text-[11px] leading-relaxed">
-                        Pay via direct GPay / PhonePe to Academy Director: <strong className="text-slate-800 font-mono">+91 98000 00000</strong> (UPI: <span className="font-mono text-indigo-700">tuitionhub@icici</span>).
+                  <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
+                    <span className="text-xs font-semibold text-slate-500 flex items-center gap-1.5">
+                      <CreditCard className="w-3.5 h-3.5 text-indigo-600" /> Standard Rate
+                    </span>
+                    <div className="text-3xl font-extrabold text-indigo-600 mt-1">
+                      ₹{user.hourlyRate || 400}
+                    </div>
+                    <span className="text-[11px] text-slate-400 font-medium mt-0.5 block">Per billable hour</span>
+                  </div>
+
+                  <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
+                    <span className="text-xs font-semibold text-slate-500 flex items-center gap-1.5">
+                      <FileText className="w-3.5 h-3.5 text-indigo-600" /> Classes Count
+                    </span>
+                    <div className="text-3xl font-extrabold text-slate-900 mt-1">
+                      {classLogs.length}
+                    </div>
+                    <span className="text-[11px] text-slate-400 font-medium mt-0.5 block">Delivered this month</span>
+                  </div>
+
+                  <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
+                    <span className="text-xs font-semibold text-slate-500 flex items-center gap-1.5">
+                      <CreditCard className="w-3.5 h-3.5 text-emerald-600" /> Total Fee Due
+                    </span>
+                    <div className="text-3xl font-black text-emerald-600 mt-1">
+                      ₹{Math.round(Number((monthlyHours ?? 0).toFixed(2)) * (user.hourlyRate || 400)).toLocaleString('en-IN')}
+                    </div>
+                    <span className={`text-[11px] font-bold mt-0.5 block ${
+                      Math.round(Number((monthlyHours ?? 0).toFixed(2)) * (user.hourlyRate || 400)) === 0 ? 'text-emerald-600' : 'text-amber-600'
+                    }`}>
+                      {Math.round(Number((monthlyHours ?? 0).toFixed(2)) * (user.hourlyRate || 400)) === 0 ? 'All settled' : 'Payment due'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Itemized Billing Breakdown Table */}
+                <div className="bg-white p-6 sm:p-7 rounded-2xl border border-slate-200/80 shadow-sm">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-5 pb-4 border-b border-slate-100">
+                    <div>
+                      <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                        <Layers className="w-4 h-4 text-indigo-600" />
+                        Itemized Class-by-Class Fee Breakdown
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Every 1-on-1 class session verified with decimal duration hours and standard academy billing policy.
                       </p>
                     </div>
+                    <span className="text-xs font-semibold text-slate-500 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
+                      Billing Cycle: Nov 1 – Nov 30, 2026
+                    </span>
+                  </div>
 
-                    {/* Digital Receipts Notice */}
-                    <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 space-y-1">
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-slate-800 flex items-center gap-1.5">
-                          <Info className="w-3.5 h-3.5 text-indigo-600" />
-                          <span>Official Payment Receipts</span>
-                        </span>
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
-                          Planned for later
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-200 text-xs uppercase tracking-wider text-slate-400">
+                          <th className="py-3 px-3">Date</th>
+                          <th className="py-3 px-3">Subject & Topics Covered</th>
+                          <th className="py-3 px-3">Teacher</th>
+                          <th className="py-3 px-3">Attended Hours</th>
+                          <th className="py-3 px-3">Rate</th>
+                          <th className="py-3 px-3">Status</th>
+                          <th className="py-3 px-3 text-right">Line Total</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {classLogs.length === 0 ? (
+                          <tr>
+                            <td colSpan="7" className="py-8 text-center text-slate-400 text-xs italic">
+                              No completed class records found for this billing cycle.
+                            </td>
+                          </tr>
+                        ) : (
+                          classLogs.map((log) => {
+                            const durHours = log.billableHours || 0;
+                            const rate = user?.hourlyRate || 400;
+                            const lineTotal = Math.round(durHours * rate);
+
+                            return (
+                              <tr key={log.id} className="hover:bg-slate-50/60 transition-colors">
+                                <td className="py-3 px-3 font-semibold text-slate-800 text-xs whitespace-nowrap">{log.date}</td>
+                                <td className="py-3 px-3">
+                                  <div className="font-bold text-slate-900 text-xs">{log.subject}</div>
+                                  <div className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">{log.topicsCovered || '1-on-1 Class'}</div>
+                                </td>
+                                <td className="py-3 px-3 text-xs text-slate-700">{log.teacherName}</td>
+                                <td className="py-3 px-3 text-xs font-bold text-slate-800">
+                                  {durHours > 0 ? `${durHours} hrs` : '0.0 hrs'}
+                                </td>
+                                <td className="py-3 px-3 text-xs text-slate-500 whitespace-nowrap">
+                                  ₹{rate} per hour
+                                </td>
+                                <td className="py-3 px-3 text-xs">
+                                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                    durHours > 0
+                                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                      : 'bg-red-50 text-red-700 border border-red-200'
+                                  }`}>
+                                    {durHours > 0 ? 'Confirmed Present' : 'Absent (No charge)'}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-3 text-xs text-right font-extrabold text-slate-900">
+                                  {durHours > 0 ? `₹${lineTotal.toLocaleString('en-IN')}` : '₹0'}
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                      <tfoot className="border-t-2 border-slate-200 bg-slate-50/50">
+                        <tr>
+                          <td colSpan="3" className="py-3 px-3 font-bold text-xs text-slate-700">Total Billed Attended Hours:</td>
+                          <td className="py-3 px-3 font-extrabold text-xs text-indigo-700">{Number((monthlyHours ?? 0).toFixed(2))} hrs</td>
+                          <td colSpan="2" className="py-3 px-3 text-right font-bold text-xs text-slate-700">Net Payable Amount:</td>
+                          <td className="py-3 px-3 text-right font-black text-sm text-emerald-600">
+                            ₹{Math.round(Number((monthlyHours ?? 0).toFixed(2)) * (user.hourlyRate || 400)).toLocaleString('en-IN')}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Payment Instructions & Official Receipts Section */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Box 1: Direct UPI / Digital Payment */}
+                  <div className="bg-white p-6 sm:p-7 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-bold text-base text-slate-900 flex items-center gap-2">
+                          <CreditCard className="w-5 h-5 text-indigo-600" />
+                          Direct Digital &amp; UPI Payment
+                        </h4>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-100">
+                          Instant Transfer
                         </span>
                       </div>
-                      <p className="text-[11px] text-slate-500 leading-relaxed">
-                        Official payment receipts and PDF downloads will be available once online payments are enabled.
+
+                      <p className="text-xs text-slate-500 mb-4 leading-relaxed">
+                        Parents can pay monthly fees directly to TuitionHub Academy Director via Google Pay, PhonePe, Paytm or any UPI app.
                       </p>
+
+                      <div className="space-y-3">
+                        {/* Copyable UPI ID */}
+                        <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-3">
+                          <div>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Academy Director UPI ID</span>
+                            <span className="font-mono font-bold text-xs text-slate-800">tuitionhub@icici</span>
+                          </div>
+                          <button
+                            onClick={handleCopyUpi}
+                            className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-xs font-bold text-slate-700 flex items-center gap-1.5 shadow-xs transition-colors shrink-0"
+                          >
+                            {copiedUpi ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                            <span>{copiedUpi ? 'Copied UPI!' : 'Copy UPI'}</span>
+                          </button>
+                        </div>
+
+                        {/* Copyable GPay Phone */}
+                        <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-3">
+                          <div>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">GPay &amp; PhonePe Mobile</span>
+                            <span className="font-mono font-bold text-xs text-slate-800">+91 98000 00000</span>
+                          </div>
+                          <button
+                            onClick={handleCopyPhone}
+                            className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-xs font-bold text-slate-700 flex items-center gap-1.5 shadow-xs transition-colors shrink-0"
+                          >
+                            {copiedPhone ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                            <span>{copiedPhone ? 'Copied Number!' : 'Copy Number'}</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-5 pt-4 border-t border-slate-100">
+                      <button 
+                        disabled
+                        className="w-full py-2.5 rounded-xl font-bold text-xs bg-slate-100 border border-slate-200 text-slate-400 cursor-not-allowed flex items-center justify-center gap-2"
+                      >
+                        <CreditCard className="w-4 h-4 text-slate-400" />
+                        <span>Online Card Gateway (Planned for later)</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Box 2: Official Stamped Receipts & Bank Details */}
+                  <div className="bg-white p-6 sm:p-7 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-bold text-base text-slate-900 flex items-center gap-2">
+                          <Building className="w-5 h-5 text-indigo-600" />
+                          Official Receipt &amp; Bank Details
+                        </h4>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-100">
+                          Tax Compliant
+                        </span>
+                      </div>
+
+                      <p className="text-xs text-slate-500 mb-4 leading-relaxed">
+                        TuitionHub issues authentic digital fee receipts with complete hours breakdown for parents' educational records and employer claims.
+                      </p>
+
+                      <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1.5 text-slate-700">
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">Account Holder:</span>
+                          <strong className="text-slate-900">TuitionHub Coaching Academy</strong>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">Bank Name:</span>
+                          <strong className="text-slate-900">ICICI Bank Ltd.</strong>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">Account Number:</span>
+                          <span className="font-mono font-bold text-slate-900">012345678901</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">IFSC Code:</span>
+                          <span className="font-mono font-bold text-indigo-700">ICIC0000123</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-5 pt-4 border-t border-slate-100">
+                      <button
+                        onClick={() => setIsReceiptModalOpen(true)}
+                        className="w-full py-2.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold text-xs flex items-center justify-center gap-2 transition-colors"
+                      >
+                        <Printer className="w-4 h-4 text-indigo-600" />
+                        <span>Open Official Stamped Fee Receipt</span>
+                      </button>
                     </div>
                   </div>
                 </div>
-              </div>
 
+              </div>
             )}
 
-            {/* Tab 4: Homework & Practice */}
+            {/* Tab 4: Homework & Practice — Full-Page UI */}
             {activeTab === 'HOMEWORK' && (
-              <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col justify-between max-w-2xl">
-                <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <h4 className="font-bold text-base flex items-center gap-2 text-slate-900">
-                      <BookOpen className="w-5 h-5 text-indigo-600" />
-                      Active Homework Assignment
-                    </h4>
-                    <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
-                      Planned for later
+              <div className="space-y-6 animate-fadeIn">
+                
+                {/* Full-Page Homework Banner */}
+                <div className="bg-white p-6 sm:p-7 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                        Student Practice Hub &bull; Grade 10
+                      </span>
+                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${
+                        uploadedHomeworkFile 
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                          : 'bg-amber-50 text-amber-700 border border-amber-200'
+                      }`}>
+                        {uploadedHomeworkFile ? 'Submitted for review' : '1 Active assignment'}
+                      </span>
+                    </div>
+                    <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+                      Homework &amp; Practice
+                    </h2>
+                    <p className="text-xs sm:text-sm text-slate-500 mt-1">
+                      Complete your daily assignments and upload photos of your completed notebook work for teacher review.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold px-3.5 py-2 rounded-xl bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center gap-2">
+                      <BookOpen className="w-4 h-4 text-indigo-600" />
+                      <span>NCERT Curriculum Active</span>
+                    </span>
+                  </div>
+                </div>
+
+                {/* 3 Metric Summary Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
+                    <span className="text-xs font-semibold text-slate-500 flex items-center gap-1.5">
+                      <BookOpen className="w-3.5 h-3.5 text-indigo-600" /> Active Assignment
+                    </span>
+                    <div className="text-2xl font-extrabold text-slate-900 mt-1">
+                      Exercise 4.2
+                    </div>
+                    <span className="text-[11px] text-indigo-600 font-bold mt-0.5 block">Mathematics &bull; Quadratic Equations</span>
+                  </div>
+
+                  <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
+                    <span className="text-xs font-semibold text-slate-500 flex items-center gap-1.5">
+                      <Upload className="w-3.5 h-3.5 text-indigo-600" /> Submission Status
+                    </span>
+                    <div className={`text-2xl font-extrabold mt-1 ${uploadedHomeworkFile ? 'text-emerald-600' : 'text-amber-600'}`}>
+                      {uploadedHomeworkFile ? 'Work Uploaded' : 'Pending Upload'}
+                    </div>
+                    <span className="text-[11px] text-slate-400 font-medium mt-0.5 block">
+                      {uploadedHomeworkFile ? `Submitted at ${uploadedHomeworkFile.time}` : 'Due before next class'}
                     </span>
                   </div>
 
-                  <p className="text-sm font-semibold text-slate-800">
-                    NCERT Exercise 4.2: Quadratic Formula Applications
-                  </p>
-                  <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                    Complete practice questions. Upload photo of completed work for teacher review.
-                  </p>
+                  <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
+                    <span className="text-xs font-semibold text-slate-500 flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600" /> Teacher Review
+                    </span>
+                    <div className="text-2xl font-extrabold text-indigo-600 mt-1">
+                      Mrs. Sunita Verma
+                    </div>
+                    <span className="text-[11px] text-slate-400 font-medium mt-0.5 block">Reviewed during next 1-on-1 class</span>
+                  </div>
+                </div>
 
-                  {/* Uploaded File Confirmation */}
-                  {uploadedHomeworkFile && (
-                    <div className="mt-4 p-3 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center flex-shrink-0">
-                        <ImageIcon className="w-5 h-5" />
+                {/* Main Active Assignment & Upload Grid */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                  
+                  {/* Left Column: Assignment Details & Instructions (7 cols) */}
+                  <div className="lg:col-span-7 bg-white p-6 sm:p-7 rounded-2xl border border-slate-200/80 shadow-sm space-y-4">
+                    <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                      <div>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 block">Current Assignment</span>
+                        <h3 className="text-lg font-bold text-slate-900 mt-0.5">
+                          NCERT Exercise 4.2: Quadratic Formula Applications
+                        </h3>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <span className="text-xs font-bold text-emerald-900 block truncate">{uploadedHomeworkFile.name}</span>
-                        <span className="text-[10px] text-emerald-700 block">Submitted at {uploadedHomeworkFile.time} ({uploadedHomeworkFile.size})</span>
-                      </div>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-200 text-emerald-800">
-                        Submitted
+                      <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                        Due Tomorrow 5:00 PM
                       </span>
                     </div>
-                  )}
+
+                    <div className="text-xs text-slate-600 space-y-2.5 leading-relaxed">
+                      <p className="font-semibold text-slate-800">
+                        Instructions from your teacher:
+                      </p>
+                      <ul className="list-disc pl-5 space-y-1.5 text-slate-600">
+                        <li>Solve Questions 1 through 5 from NCERT Exercise 4.2 in your mathematics practice notebook.</li>
+                        <li>Write out every step clearly, including identifying coefficients <strong className="font-mono text-slate-900">a, b, c</strong> and calculating the discriminant <strong className="font-mono text-slate-900">b² - 4ac</strong>.</li>
+                        <li>Double-check negative signs when applying the formula <strong className="font-mono text-slate-900">x = (-b ± √D) / 2a</strong>.</li>
+                        <li>Take a clear, well-lit photo of your written answers and upload it using the upload box on the right.</li>
+                      </ul>
+                    </div>
+
+                    <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1">
+                      <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                        <Info className="w-3.5 h-3.5 text-indigo-600" />
+                        <span>Why upload notebook photos?</span>
+                      </span>
+                      <p className="text-slate-500 text-[11px] leading-relaxed">
+                        Uploading your handwritten solutions allows your teacher to identify exact calculation mistakes and review them during your live 1-on-1 Google Meet session.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Right Column: Interactive Upload & Confirmation (5 cols) */}
+                  <div className="lg:col-span-5 bg-white p-6 sm:p-7 rounded-2xl border border-slate-200/80 shadow-sm space-y-4">
+                    <h4 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                      <Upload className="w-4 h-4 text-indigo-600" />
+                      <span>Upload Notebook Photo</span>
+                    </h4>
+
+                    {/* Uploaded File Confirmation Banner */}
+                    {uploadedHomeworkFile ? (
+                      <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                            <CheckCircle2 className="w-5 h-5" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <span className="text-xs font-bold text-emerald-900 block truncate">{uploadedHomeworkFile.name}</span>
+                            <span className="text-[10px] text-emerald-700 block">Submitted at {uploadedHomeworkFile.time} ({uploadedHomeworkFile.size})</span>
+                          </div>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-200 text-emerald-800">
+                            Submitted
+                          </span>
+                        </div>
+
+                        <p className="text-[11px] text-emerald-800 leading-relaxed">
+                          Your photo is safely saved for teacher review. You can upload a new photo anytime if you make revisions.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-200 text-amber-800 text-xs">
+                        No file uploaded yet. Please upload your completed homework photo before tomorrow's class.
+                      </div>
+                    )}
+
+                    {/* Drag & Drop File Upload Area */}
+                    <label className="border-2 border-dashed border-slate-200 hover:border-indigo-500 rounded-2xl p-6 flex flex-col items-center justify-center cursor-pointer transition-all bg-slate-50/50 hover:bg-indigo-50/20 group">
+                      <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mb-2 group-hover:scale-105 transition-transform">
+                        <Upload className="w-6 h-6 text-indigo-600" />
+                      </div>
+                      <span className="text-xs font-bold text-slate-800 group-hover:text-indigo-600 transition-colors text-center">
+                        {uploadedHomeworkFile ? 'Upload Revised Notebook Photo' : 'Select or Drop Notebook Photo'}
+                      </span>
+                      <span className="text-[11px] text-slate-400 mt-1 text-center">
+                        Supports JPG, PNG or PDF up to 10MB
+                      </span>
+                      <input type="file" accept="image/*,.pdf" className="hidden" onChange={handleHomeworkUpload} />
+                    </label>
+                  </div>
+
                 </div>
 
-                <div className="mt-4">
-                  <label className="border-2 border-dashed border-slate-200 hover:border-indigo-400 rounded-2xl p-4 flex flex-col items-center justify-center cursor-pointer transition-colors bg-slate-50/50 hover:bg-indigo-50/20">
-                    <Upload className="w-6 h-6 text-indigo-500 mb-1" />
-                    <span className="text-xs font-bold text-slate-700">
-                      {uploadedHomeworkFile ? 'Upload New Photo' : 'Upload Photo of Completed Work'}
+                {/* Homework History & Practice Log Table */}
+                <div className="bg-white p-6 sm:p-7 rounded-2xl border border-slate-200/80 shadow-sm">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                        <FileText className="w-4 h-4 text-indigo-600" />
+                        Recent Homework &amp; Practice Tasks
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Tasks assigned by your teacher across previous classes.
+                      </p>
+                    </div>
+                    <span className="text-xs font-bold px-3 py-1 bg-indigo-50 text-indigo-700 rounded-full border border-indigo-200">
+                      Curriculum Tracker
                     </span>
-                    <span className="text-[10px] text-slate-400 mt-0.5">JPG, PNG or PDF up to 10MB</span>
-                    <input type="file" accept="image/*,.pdf" className="hidden" onChange={handleHomeworkUpload} />
-                  </label>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-200 text-xs uppercase tracking-wider text-slate-400">
+                          <th className="py-2.5 px-3">Date</th>
+                          <th className="py-2.5 px-3">Subject</th>
+                          <th className="py-2.5 px-3">Homework Task</th>
+                          <th className="py-2.5 px-3">Teacher</th>
+                          <th className="py-2.5 px-3">Submission Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {classLogs.filter(l => l.homeworkAssigned).length === 0 ? (
+                          <tr>
+                            <td colSpan="5" className="py-6 text-center text-slate-400 text-xs italic">
+                              No previous homework records logged yet.
+                            </td>
+                          </tr>
+                        ) : (
+                          classLogs.filter(l => l.homeworkAssigned).map((log) => (
+                            <tr key={log.id} className="hover:bg-slate-50/60 transition-colors">
+                              <td className="py-3 px-3 font-semibold text-slate-800 text-xs whitespace-nowrap">{log.date}</td>
+                              <td className="py-3 px-3 font-bold text-slate-900 text-xs whitespace-nowrap">{log.subject}</td>
+                              <td className="py-3 px-3 text-xs text-slate-700 max-w-md">
+                                {log.homeworkAssigned}
+                              </td>
+                              <td className="py-3 px-3 text-xs text-slate-600 whitespace-nowrap">{log.teacherName}</td>
+                              <td className="py-3 px-3 text-xs">
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap">
+                                  Completed &amp; Reviewed
+                                </span>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
+
               </div>
             )}
 
