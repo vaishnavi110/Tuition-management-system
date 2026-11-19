@@ -305,6 +305,51 @@ async function runTestSuite() {
     assert(updateRes.data.user.parentPhone === '9822009988', 'Updated parent phone persisted in Render PostgreSQL');
 
     // -------------------------------------------------------------------------
+    // 9. Academy Directory & User Management (Admin RBAC & Directory Integrity)
+    // -------------------------------------------------------------------------
+    console.log('\n--- 9. Academy Directory & User Management (Admin RBAC & Integrity) ---');
+
+    // 9.1 RBAC Security: Unauthorized access blocked (401)
+    const anonAdminUsersRes = await request('GET', '/admin/users');
+    assert(anonAdminUsersRes.status === 401, 'Unauthenticated request to /api/admin/users is strictly blocked (HTTP 401)');
+
+    // 9.2 RBAC Security: Student role forbidden (403)
+    const studentAdminUsersRes = await request('GET', '/admin/users', null, studentToken);
+    assert(studentAdminUsersRes.status === 403, 'Student access to /api/admin/users is strictly forbidden (HTTP 403)');
+
+    // 9.3 RBAC Security: Teacher role forbidden (403)
+    const teacherAdminUsersRes = await request('GET', '/admin/users', null, teacherToken);
+    assert(teacherAdminUsersRes.status === 403, 'Teacher access to /api/admin/users is strictly forbidden (HTTP 403)');
+
+    // 9.4 Authorized Admin Directory Retrieval (200)
+    const adminDirectoryRes = await request('GET', '/admin/users', null, adminToken);
+    assert(adminDirectoryRes.status === 200, 'Admin successfully fetches /api/admin/users directory (HTTP 200)');
+    assert(adminDirectoryRes.data.success === true, 'Directory response indicates success');
+    assert(Array.isArray(adminDirectoryRes.data.students), 'Response contains students list array');
+    assert(Array.isArray(adminDirectoryRes.data.teachers), 'Response contains teachers list array');
+    assert(adminDirectoryRes.data.students.length >= 1, 'Students roster has at least 1 enrolled student');
+    assert(adminDirectoryRes.data.teachers.length >= 1, 'Teachers roster has at least 1 onboarded tutor');
+
+    // 9.5 Student Profile Metadata Integrity in Directory
+    const firstStudent = adminDirectoryRes.data.students[0];
+    assert(typeof firstStudent.name === 'string' && firstStudent.name.length > 0, 'Directory student has valid name');
+    assert(typeof firstStudent.grade === 'string' && firstStudent.grade.length > 0, 'Directory student has grade standard');
+    assert(firstStudent.phone !== undefined, 'Directory student has contact phone');
+    assert(firstStudent.parentName !== undefined, 'Directory student has parent name');
+    assert(firstStudent.parentPhone !== undefined, 'Directory student has parent phone');
+    assert(firstStudent.schoolName !== undefined, 'Directory student has school name');
+    assert(typeof firstStudent.attendedHours === 'number', 'Directory student has numeric attendedHours');
+    assert(typeof firstStudent.totalFeeDue === 'number', 'Directory student has numeric totalFeeDue');
+
+    // 9.6 Teacher Metadata Integrity in Directory
+    const firstTeacher = adminDirectoryRes.data.teachers[0];
+    assert(typeof firstTeacher.name === 'string' && firstTeacher.name.length > 0, 'Directory teacher has valid name');
+    assert(typeof firstTeacher.subject === 'string' && firstTeacher.subject.length > 0, 'Directory teacher has subject department');
+    assert(typeof firstTeacher.classesTaken === 'number', 'Directory teacher has numeric classesTaken');
+    assert(typeof firstTeacher.accruedPayout === 'number', 'Directory teacher has numeric accruedPayout');
+    assert(firstTeacher.defaultMeetLink && firstTeacher.defaultMeetLink.includes('meet.google.com'), 'Directory teacher has valid Google Meet link');
+
+    // -------------------------------------------------------------------------
     // SUMMARY
     // -------------------------------------------------------------------------
     console.log('\n===============================================================');
