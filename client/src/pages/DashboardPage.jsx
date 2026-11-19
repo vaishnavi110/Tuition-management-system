@@ -1173,6 +1173,26 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
+                {/* 📌 Notice: Online payment is planned for later */}
+                <div className="p-4 sm:p-5 rounded-2xl bg-amber-50/80 border border-amber-200 text-xs text-amber-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+                  <div className="flex items-start sm:items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
+                      <Clock className="w-4 h-4 text-amber-700" />
+                    </div>
+                    <div>
+                      <span className="font-bold text-amber-900 block text-xs">
+                        Online Payment is Planned for Later
+                      </span>
+                      <p className="text-amber-800 text-[11px] mt-0.5 leading-relaxed">
+                        Online automatic checkout (cards &amp; net banking) is scheduled for a future update. Monthly fees are calculated automatically from verified classes and can be settled directly with the academy via UPI or bank transfer.
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-amber-200/80 text-amber-900 border border-amber-300 self-start sm:self-auto shrink-0">
+                    Planned for later
+                  </span>
+                </div>
+
                 {billingError && (
                   <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-semibold flex items-center justify-between gap-3 shadow-sm">
                     <div className="flex items-center gap-2">
@@ -1375,14 +1395,18 @@ export default function DashboardPage() {
                       </div>
                     </div>
 
-                    <div className="mt-5 pt-4 border-t border-slate-100">
+                    <div className="mt-5 pt-4 border-t border-slate-100 space-y-2">
                       <button 
                         disabled
-                        className="w-full py-2.5 rounded-xl font-bold text-xs bg-slate-100 border border-slate-200 text-slate-400 cursor-not-allowed flex items-center justify-center gap-2"
+                        className="w-full py-2.5 rounded-xl font-bold text-xs bg-slate-100 border border-slate-200 text-slate-400 cursor-not-allowed flex items-center justify-center gap-2 shadow-inner"
+                        title="Online automatic checkout is planned for a future update"
                       >
                         <CreditCard className="w-4 h-4 text-slate-400" />
-                        <span>Online Card Gateway (Planned for later)</span>
+                        <span>Online Automatic Payment — Planned for later</span>
                       </button>
+                      <p className="text-[11px] text-slate-400 text-center">
+                        Payment gateway is scheduled for later. Please use direct transfer above.
+                      </p>
                     </div>
                   </div>
 
@@ -3142,7 +3166,7 @@ export default function DashboardPage() {
               </div>
 
               <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-600 font-medium flex items-center justify-between text-[11px]">
-                <span>Payment: Direct UPI / Bank Transfer (+91 98000 00000)</span>
+                <span>Payment: Direct UPI / Bank Transfer (+91 98000 00000) &bull; Online payment planned for later</span>
                 <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
                   Monthly Fee Bill
                 </span>
