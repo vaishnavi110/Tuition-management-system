@@ -5,6 +5,7 @@ const {
   createGrade, 
   updateGrade, 
   getSessions, 
+  getEnrolledStudents,
   createSession, 
   rescheduleSession, 
   cancelSession 
@@ -15,6 +16,9 @@ const { verifyToken, requireRole } = require('../middleware/authMiddleware');
 router.get('/grades', getGrades);
 router.post('/grades', verifyToken, requireRole('ADMIN'), createGrade);
 router.put('/grades/:id', verifyToken, requireRole('ADMIN'), updateGrade);
+
+// Enrolled Students list for Scheduling (Teachers & Admins)
+router.get('/students', verifyToken, getEnrolledStudents);
 
 // 1-on-1 Sessions (Authenticated)
 router.get('/sessions', verifyToken, getSessions);

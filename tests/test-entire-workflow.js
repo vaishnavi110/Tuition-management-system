@@ -220,6 +220,7 @@ async function runTestSuite() {
     const regTeacherWithCode = await request('POST', '/auth/register', {
       name: 'Authorized Tutor',
       emailOrPhone: uniqueTeacherEmail,
+      phone: '9844005566',
       password: 'password123',
       role: 'TEACHER',
       inviteCode: 'TUTOR-2026-INVITE',
@@ -348,6 +349,91 @@ async function runTestSuite() {
     assert(typeof firstTeacher.classesTaken === 'number', 'Directory teacher has numeric classesTaken');
     assert(typeof firstTeacher.accruedPayout === 'number', 'Directory teacher has numeric accruedPayout');
     assert(firstTeacher.defaultMeetLink && firstTeacher.defaultMeetLink.includes('meet.google.com'), 'Directory teacher has valid Google Meet link');
+
+    // -------------------------------------------------------------------------
+    // 10. Teacher Custom Subject, Dynamic Student Dropdown & Session Cross-Reflection
+    // -------------------------------------------------------------------------
+    console.log('\n--- 10. Teacher Subject, Dynamic Scheduling & Student Reflection ---');
+
+    // 10.1 Teacher registration rejects missing mobile number
+    const badTeacherPhoneRes = await request('POST', '/auth/register', {
+      name: 'Dr. Neha Sen',
+      emailOrPhone: `neha.sen.${Date.now()}@tuition.com`,
+      phone: '123', // invalid phone
+      password: 'password123',
+      role: 'TEACHER',
+      inviteCode: 'TUTOR-2026-INVITE',
+      subject: 'Biology'
+    });
+    assert(badTeacherPhoneRes.status === 400, 'Teacher registration strictly rejects invalid mobile number (HTTP 400)');
+
+    // 10.2 Teacher registration persists custom subject without demo fallback
+    const bioTeacherEmail = `neha.sen.${Date.now()}@tuition.com`;
+    const bioTeacherRes = await request('POST', '/auth/register', {
+      name: 'Dr. Neha Sen',
+      emailOrPhone: bioTeacherEmail,
+      phone: '9833112233',
+      password: 'password123',
+      role: 'TEACHER',
+      inviteCode: 'TUTOR-2026-INVITE',
+      subject: 'Biology & Genetics',
+      qualification: 'Ph.D in Molecular Genetics'
+    });
+    assert(bioTeacherRes.status === 201, 'Biology teacher registers successfully with custom subject (HTTP 201)');
+    const bioTeacherToken = bioTeacherRes.data.token;
+
+    // 10.3 /api/auth/me returns teacher custom subject (NOT Mathematics)
+    const bioTeacherMe = await request('GET', '/auth/me', null, bioTeacherToken);
+    assert(bioTeacherMe.status === 200, '/api/auth/me returns 200 for newly registered teacher');
+    assert(bioTeacherMe.data.user.subject === 'Biology & Genetics', `Teacher subject is 'Biology & Genetics' (got: '${bioTeacherMe.data.user.subject}')`);
+    assert(bioTeacherMe.data.user.phone === '9833112233', 'Teacher mobile phone is properly returned in profile');
+
+    // 10.4 Teacher fetches enrolled students list for dynamic scheduling
+    const enrolledStudentsRes = await request('GET', '/schedule/students', null, bioTeacherToken);
+    assert(enrolledStudentsRes.status === 200, 'Teacher successfully fetches /api/schedule/students (HTTP 200)');
+    assert(Array.isArray(enrolledStudentsRes.data.students), 'Students list is returned as array');
+    assert(enrolledStudentsRes.data.students.length >= 1, 'Students list contains registered students from DB');
+
+    // 10.5 Register a brand-new student to test cross-account scheduling reflection
+    const freshStudentEmail = `fresh.student.${Date.now()}@gmail.com`;
+    const freshStudentRes = await request('POST', '/auth/register', {
+      name: 'Tanvi Kulkarni',
+      emailOrPhone: freshStudentEmail,
+      phone: '9822334455',
+      password: 'password123',
+      role: 'STUDENT',
+      grade: 'Grade 10 (Board)',
+      schoolName: 'Bishop High School Pune',
+      parentName: 'Sanjay Kulkarni',
+      parentPhone: '9822330000'
+    });
+    assert(freshStudentRes.status === 201, 'Fresh student Tanvi Kulkarni registered successfully (HTTP 201)');
+    const freshStudentToken = freshStudentRes.data.token;
+    const freshStudentId = freshStudentRes.data.user.id;
+
+    // 10.6 Teacher schedules a class specifically for this new student
+    const tomorrowDate = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const schedRes = await request('POST', '/schedule/sessions', {
+      studentId: freshStudentId,
+      studentName: 'Tanvi Kulkarni',
+      subject: 'Biology & Genetics',
+      topic: 'Cell Division: Mitosis & Meiosis with diagram analysis',
+      date: tomorrowDate,
+      startTime: '16:00',
+      endTime: '17:15',
+      meetLink: 'https://meet.google.com/bio-tanvi-demo'
+    }, bioTeacherToken);
+    assert(schedRes.status === 201, 'Teacher schedules 1-on-1 class for Tanvi Kulkarni (HTTP 201)');
+    assert(schedRes.data.session.studentName === 'Tanvi Kulkarni', 'Scheduled session student name matches Tanvi');
+    assert(schedRes.data.session.durationMinutes === 75, 'Scheduled duration is exactly 75 mins');
+
+    // 10.7 Verify scheduled session immediately reflects in the student's logged in session list!
+    const studentSessionsRes = await request('GET', '/schedule/sessions', null, freshStudentToken);
+    assert(studentSessionsRes.status === 200, 'Student fetches /api/schedule/sessions successfully (HTTP 200)');
+    const matchingSession = studentSessionsRes.data.sessions.find(s => s.subject === 'Biology & Genetics');
+    assert(!!matchingSession, 'Newly scheduled Biology session reflects live in student logged-in dashboard!');
+    assert(matchingSession.teacherName === 'Dr. Neha Sen', 'Student session shows correct teacher name');
+    assert(matchingSession.meetLink === 'https://meet.google.com/bio-tanvi-demo', 'Student session shows correct Google Meet link');
 
     // -------------------------------------------------------------------------
     // SUMMARY

@@ -81,6 +81,8 @@ model TeacherProfile {
   id               String    @id @default(uuid())
   userId           String    @unique
   user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject          String?
+  qualification    String?
   phone            String?
   defaultMeetLink  String?
   bio              String?

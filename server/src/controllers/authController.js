@@ -68,12 +68,12 @@ const formatUserResponse = (user) => {
     role: user.role,
     grade: user.student?.grade?.name || user.grade || (user.role === 'STUDENT' ? 'Grade 10 (Board)' : undefined),
     hourlyRate: user.student?.grade?.studentHourlyRate || (user.role === 'TEACHER' ? 250 : 400),
-    subject: user.subject || (user.role === 'TEACHER' ? 'Mathematics' : undefined),
-    phone: user.student?.phone || user.teacher?.phone || user.phone || '',
+    subject: user.teacher?.subject || user.subject || (user.role === 'TEACHER' ? 'General Faculty' : undefined),
+    phone: user.teacher?.phone || user.student?.phone || user.phone || '',
     parentName: user.student?.parentName || user.parentName || (user.role === 'STUDENT' ? '' : undefined),
     parentPhone: user.student?.parentPhone || user.parentPhone || (user.role === 'STUDENT' ? '' : undefined),
     schoolName: user.student?.schoolName || user.schoolName || (user.role === 'STUDENT' ? '' : undefined),
-    qualification: user.teacher?.bio || user.qualification || (user.role === 'TEACHER' ? 'Senior Faculty' : undefined),
+    qualification: user.teacher?.qualification || user.teacher?.bio || user.qualification || (user.role === 'TEACHER' ? 'Senior Faculty' : undefined),
     designation: user.designation || (user.role === 'ADMIN' ? 'Managing Director & Operations' : undefined),
     bankAccount: user.bankAccount || (user.role === 'TEACHER' ? 'HDFC Bank •••• 4892' : undefined)
   };
@@ -127,20 +127,7 @@ const register = async (req, res) => {
     }
   }
 
-  // 3. Strict validation on contact numbers if provided
-  if (phone && phone.trim() && !isValidPhoneNumber(phone)) {
-    return res.status(400).json({ 
-      error: 'Invalid student contact number. Please enter a valid 10-digit mobile number.' 
-    });
-  }
-
-  if (parentPhone && parentPhone.trim() && !isValidPhoneNumber(parentPhone)) {
-    return res.status(400).json({ 
-      error: 'Invalid parent/guardian mobile number. Please enter a valid 10-digit mobile number.' 
-    });
-  }
-
-  // 4. Role-based onboarding security checks
+  // 3. Role-based onboarding security checks (Invite Code Gatekeeper)
   const normalizedRole = role.toUpperCase();
   if (normalizedRole === 'TEACHER') {
     if (!inviteCode || !VALID_TEACHER_INVITES.includes(inviteCode.trim().toUpperCase())) {
@@ -154,6 +141,26 @@ const register = async (req, res) => {
         error: 'Administrative registration is strictly restricted. Please provide a valid Master Academy Authorization Key.' 
       });
     }
+  }
+
+  // 4. Strict validation on contact numbers if provided
+  if (phone && phone.trim() && !isValidPhoneNumber(phone)) {
+    return res.status(400).json({ 
+      error: 'Invalid mobile contact number. Please enter a valid 10-digit mobile number starting with 6, 7, 8, or 9.' 
+    });
+  }
+
+  // Teacher mobile phone is mandatory
+  if (normalizedRole === 'TEACHER' && (!phone || !phone.trim() || !isValidPhoneNumber(phone.trim()))) {
+    return res.status(400).json({
+      error: 'Teacher mobile contact number is mandatory and must be a valid 10-digit number.'
+    });
+  }
+
+  if (parentPhone && parentPhone.trim() && !isValidPhoneNumber(parentPhone)) {
+    return res.status(400).json({ 
+      error: 'Invalid parent/guardian mobile number. Please enter a valid 10-digit mobile number.' 
+    });
   }
 
   const cleanEmail = cleanIdentifier.toLowerCase();
@@ -198,8 +205,10 @@ const register = async (req, res) => {
         ...(normalizedRole === 'TEACHER' ? {
           teacher: {
             create: {
+              subject: subject ? subject.trim() : 'General Studies',
+              qualification: qualification ? qualification.trim() : 'Senior Faculty',
               phone: effectivePhone,
-              bio: qualification || 'Senior Faculty',
+              bio: qualification ? qualification.trim() : 'Senior Faculty',
               defaultMeetLink: 'https://meet.google.com/new'
             }
           }
@@ -444,7 +453,11 @@ const updateProfile = async (req, res) => {
           teacher: {
             update: {
               ...(phone && { phone: phone.trim() }),
-              ...(qualification && { bio: qualification.trim() })
+              ...(subject && { subject: subject.trim() }),
+              ...(qualification && { 
+                qualification: qualification.trim(),
+                bio: qualification.trim() 
+              })
             }
           }
         } : {})
