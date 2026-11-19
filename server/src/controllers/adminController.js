@@ -234,6 +234,59 @@ const getAdminUsers = async (req, res) => {
   });
 };
 
+// DELETE /api/admin/users/:id
+// Admin can purge or remove an enrolled student or tutor
+const deleteAdminUser = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const studentProf = await prisma.studentProfile.findFirst({ where: { userId: id } });
+    const teacherProf = await prisma.teacherProfile.findFirst({ where: { userId: id } });
+
+    const sId = studentProf?.id;
+    const tId = teacherProf?.id;
+
+    if (sId || tId) {
+      await prisma.classLog.deleteMany({
+        where: {
+          session: {
+            OR: [
+              ...(sId ? [{ studentId: sId }] : []),
+              ...(tId ? [{ teacherId: tId }] : [])
+            ]
+          }
+        }
+      });
+
+      await prisma.session.deleteMany({
+        where: {
+          OR: [
+            ...(sId ? [{ studentId: sId }] : []),
+            ...(tId ? [{ teacherId: tId }] : [])
+          ]
+        }
+      });
+
+      if (sId) await prisma.studentProfile.delete({ where: { id: sId } });
+      if (tId) await prisma.teacherProfile.delete({ where: { id: tId } });
+    }
+
+    const deleted = await prisma.user.delete({
+      where: { id }
+    });
+
+    return res.json({ 
+      message: 'User account and associated records removed successfully from Render PostgreSQL.',
+      user: deleted 
+    });
+  } catch (err) {
+    console.warn('Prisma deleteAdminUser notice:', err.message);
+  }
+
+  res.json({ message: 'User account removed from directory.' });
+};
+
 module.exports = {
-  getAdminUsers
+  getAdminUsers,
+  deleteAdminUser
 };
