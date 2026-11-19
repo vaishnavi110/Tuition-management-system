@@ -19,6 +19,19 @@ import {
   Info
 } from 'lucide-react';
 
+// Strict Validation helpers
+const isValidEmail = (email) => {
+  if (!email || typeof email !== 'string') return false;
+  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  return emailRegex.test(email.trim());
+};
+
+const isValidPhoneNumber = (phoneNumber) => {
+  if (!phoneNumber || typeof phoneNumber !== 'string') return false;
+  const cleaned = phoneNumber.replace(/[\s\-()]/g, '');
+  return /^(\+91|0)?[6-9]\d{9}$/.test(cleaned);
+};
+
 export default function RegisterPage() {
   const { registerUser, error, setError, user } = useAuth();
   const navigate = useNavigate();
@@ -67,6 +80,32 @@ export default function RegisterPage() {
     // 🔒 Security check: If registering as Teacher or Admin, require an invitation code!
     if (role !== 'STUDENT' && !inviteCode.trim()) {
       setValidationError(`An Authorized Academy Invitation Code is mandatory to register as a ${role === 'TEACHER' ? 'Tutor' : 'Staff/Admin'}.`);
+      return;
+    }
+
+    // 📧 Strict Email / Gmail Validation
+    if (!emailOrPhone.trim()) {
+      setValidationError('Email address is required.');
+      return;
+    }
+    if (!isValidEmail(emailOrPhone.trim())) {
+      setValidationError('Please enter a valid email address (e.g. name@gmail.com).');
+      return;
+    }
+
+    // 📱 Strict Mobile Contact Validation
+    if (!phone.trim()) {
+      setValidationError('Mobile contact number is required.');
+      return;
+    }
+    if (!isValidPhoneNumber(phone.trim())) {
+      setValidationError('Please enter a valid 10-digit mobile number starting with 6, 7, 8, or 9 (e.g. 9876543210 or +91 9876543210).');
+      return;
+    }
+
+    // 👨‍👩‍👧 Parent Phone validation if entered for student
+    if (role === 'STUDENT' && parentPhone.trim() && !isValidPhoneNumber(parentPhone.trim())) {
+      setValidationError('Please enter a valid 10-digit parent/guardian mobile number (e.g. 9123456789 or +91 9123456789).');
       return;
     }
 

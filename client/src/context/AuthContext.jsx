@@ -1,11 +1,26 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
 
+// Configure global Axios request interceptor to always attach current token
+axios.interceptors.request.use((config) => {
+  const token = localStorage.getItem('tuition_token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [token, setToken] = useState(localStorage.getItem('tuition_token') || null);
+  const [token, setToken] = useState(() => {
+    const saved = localStorage.getItem('tuition_token');
+    if (saved) {
+      axios.defaults.headers.common['Authorization'] = `Bearer ${saved}`;
+    }
+    return saved || null;
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -41,6 +56,7 @@ export const AuthProvider = ({ children }) => {
       const res = await axios.post('/api/auth/register', formData);
       const { token: receivedToken, user: receivedUser } = res.data;
       localStorage.setItem('tuition_token', receivedToken);
+      axios.defaults.headers.common['Authorization'] = `Bearer ${receivedToken}`;
       setToken(receivedToken);
       setUser(receivedUser);
       return receivedUser;
@@ -58,6 +74,7 @@ export const AuthProvider = ({ children }) => {
       const res = await axios.post('/api/auth/login', { emailOrPhone, password });
       const { token: receivedToken, user: receivedUser } = res.data;
       localStorage.setItem('tuition_token', receivedToken);
+      axios.defaults.headers.common['Authorization'] = `Bearer ${receivedToken}`;
       setToken(receivedToken);
       setUser(receivedUser);
       return receivedUser;
@@ -98,6 +115,7 @@ export const AuthProvider = ({ children }) => {
   // Logout
   const logout = () => {
     localStorage.removeItem('tuition_token');
+    delete axios.defaults.headers.common['Authorization'];
     setToken(null);
     setUser(null);
   };

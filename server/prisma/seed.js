@@ -96,8 +96,23 @@ async function main() {
 
   const student1Profile = await prisma.studentProfile.upsert({
     where: { userId: student1User.id },
-    update: { gradeId: grade10.id, parentPhone: '+91 91234 56789', address: 'B-402, Green Valley Apartments, New Delhi' },
-    create: { userId: student1User.id, gradeId: grade10.id, parentPhone: '+91 91234 56789', address: 'B-402, Green Valley Apartments, New Delhi' }
+    update: { 
+      gradeId: grade10.id, 
+      phone: '+91 98112 23344',
+      parentName: 'Mr. Rajesh Sharma',
+      parentPhone: '+91 91234 56789',
+      schoolName: 'Delhi Public School (CBSE)',
+      address: 'B-402, Green Valley Apartments, New Delhi' 
+    },
+    create: { 
+      userId: student1User.id, 
+      gradeId: grade10.id, 
+      phone: '+91 98112 23344',
+      parentName: 'Mr. Rajesh Sharma',
+      parentPhone: '+91 91234 56789',
+      schoolName: 'Delhi Public School (CBSE)',
+      address: 'B-402, Green Valley Apartments, New Delhi' 
+    }
   });
 
   // Seed Student 2: Priya Patel (Grade 12 - Board & JEE)
@@ -109,8 +124,23 @@ async function main() {
 
   const student2Profile = await prisma.studentProfile.upsert({
     where: { userId: student2User.id },
-    update: { gradeId: grade12.id, parentPhone: '+91 98987 65432', address: 'Flat 12A, Cyber City Towers, Gurugram' },
-    create: { userId: student2User.id, gradeId: grade12.id, parentPhone: '+91 98987 65432', address: 'Flat 12A, Cyber City Towers, Gurugram' }
+    update: { 
+      gradeId: grade12.id, 
+      phone: '+91 98987 65432',
+      parentName: 'Mrs. Neeta Patel',
+      parentPhone: '+91 98987 00000',
+      schoolName: 'Heritage International School',
+      address: 'Flat 12A, Cyber City Towers, Gurugram' 
+    },
+    create: { 
+      userId: student2User.id, 
+      gradeId: grade12.id, 
+      phone: '+91 98987 65432',
+      parentName: 'Mrs. Neeta Patel',
+      parentPhone: '+91 98987 00000',
+      schoolName: 'Heritage International School',
+      address: 'Flat 12A, Cyber City Towers, Gurugram' 
+    }
   });
 
   // Seed Student 3: Rohan Gupta (Grade 9 Foundation)
@@ -122,8 +152,23 @@ async function main() {
 
   const student3Profile = await prisma.studentProfile.upsert({
     where: { userId: student3User.id },
-    update: { gradeId: grade9.id, parentPhone: '+91 97766 55443', address: 'House 56, Sector 14, Noida' },
-    create: { userId: student3User.id, gradeId: grade9.id, parentPhone: '+91 97766 55443', address: 'House 56, Sector 14, Noida' }
+    update: { 
+      gradeId: grade9.id, 
+      phone: '+91 97766 55443',
+      parentName: 'Mr. Sunil Gupta',
+      parentPhone: '+91 97766 00000',
+      schoolName: 'St. Mary Convent High School',
+      address: 'House 56, Sector 14, Noida' 
+    },
+    create: { 
+      userId: student3User.id, 
+      gradeId: grade9.id, 
+      phone: '+91 97766 55443',
+      parentName: 'Mr. Sunil Gupta',
+      parentPhone: '+91 97766 00000',
+      schoolName: 'St. Mary Convent High School',
+      address: 'House 56, Sector 14, Noida' 
+    }
   });
   console.log('✅ Students seeded: Aryan Sharma (Gr 10), Priya Patel (Gr 12), Rohan Gupta (Gr 9)');
 
