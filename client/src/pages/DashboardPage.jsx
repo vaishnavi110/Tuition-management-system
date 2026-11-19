@@ -448,6 +448,27 @@ export default function DashboardPage() {
     }
   };
 
+  // Permanently remove a user from Academy Directory
+  const handleDeleteDirectoryUser = async (userId, userName) => {
+    if (!window.confirm(`Are you sure you want to permanently remove "${userName}" from the academy directory?`)) {
+      return;
+    }
+    try {
+      await axios.delete(`/api/admin/users/${userId}`);
+      setAdminDirectory(prev => ({
+        ...prev,
+        students: (prev.students || []).filter(s => s.id !== userId),
+        teachers: (prev.teachers || []).filter(t => t.id !== userId),
+        studentsCount: Math.max(0, (prev.studentsCount || 1) - 1),
+        teachersCount: Math.max(0, (prev.teachersCount || 1) - 1)
+      }));
+      setActionSuccess(`Removed "${userName}" from academy directory.`);
+      setTimeout(() => setActionSuccess(''), 3000);
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to remove user');
+    }
+  };
+
   // Homework file selection
   const handleHomeworkUpload = (e) => {
     const file = e.target.files[0];
@@ -1627,6 +1648,7 @@ export default function DashboardPage() {
                           <th className="py-2.5">Parent / Guardian</th>
                           <th className="py-2.5">Attended Hours</th>
                           <th className="py-2.5">Billing Accrual</th>
+                          <th className="py-2.5 text-right pr-2">Action</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
@@ -1697,6 +1719,15 @@ export default function DashboardPage() {
                                 {student.totalFeeDue > 0 ? 'Payment Due' : 'Zero Balance'}
                               </span>
                             </td>
+                            <td className="py-3 text-xs text-right pr-2">
+                              <button
+                                onClick={() => handleDeleteDirectoryUser(student.id, student.name)}
+                                title="Remove student from directory"
+                                className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -1720,6 +1751,7 @@ export default function DashboardPage() {
                           <th className="py-2.5">Contact Details</th>
                           <th className="py-2.5">Lectures Delivered</th>
                           <th className="py-2.5">Accrued Payout</th>
+                          <th className="py-2.5 text-right pr-2">Action</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
@@ -1765,6 +1797,15 @@ export default function DashboardPage() {
                               <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
                                 Accrued & Verified
                               </span>
+                            </td>
+                            <td className="py-3 text-xs text-right pr-2">
+                              <button
+                                onClick={() => handleDeleteDirectoryUser(teacher.id, teacher.name)}
+                                title="Remove tutor from directory"
+                                className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
                             </td>
                           </tr>
                         ))}

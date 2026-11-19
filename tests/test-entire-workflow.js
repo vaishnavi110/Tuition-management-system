@@ -46,6 +46,7 @@ async function runTestSuite() {
 
   let passed = 0;
   let failed = 0;
+  const createdTestUserIds = [];
 
   function assert(condition, testName, details = '') {
     if (condition) {
@@ -205,6 +206,7 @@ async function runTestSuite() {
       grade: 'Grade 10 (Board)'
     });
     assert(regStudent.status === 201, 'Public student registration succeeds without invite code');
+    if (regStudent.data?.user?.id) createdTestUserIds.push(regStudent.data.user.id);
 
     // Teacher onboarding without invite code MUST be rejected (HTTP 403)
     const uniqueTeacherEmail = `unauthorized.tutor.${Date.now()}@tuition.com`;
@@ -227,6 +229,7 @@ async function runTestSuite() {
       subject: 'Chemistry'
     });
     assert(regTeacherWithCode.status === 201, 'Teacher registration with valid invite code succeeds (HTTP 201)');
+    if (regTeacherWithCode.data?.user?.id) createdTestUserIds.push(regTeacherWithCode.data.user.id);
 
     // -------------------------------------------------------------------------
     // TEST 7: Strict Email & 10-Digit Mobile Number Validation Boundaries
@@ -280,6 +283,7 @@ async function runTestSuite() {
     });
 
     assert(newStudentReg.status === 201, 'New student with full profile registered successfully (HTTP 201)');
+    if (newStudentReg.data?.user?.id) createdTestUserIds.push(newStudentReg.data.user.id);
     const regUser = newStudentReg.data.user;
     assert(regUser.name === 'Riddhima Joshi', 'Registered student name is Riddhima Joshi');
     assert(regUser.parentName === 'Dr. Mahesh Joshi', `Registered parent name matches input: Dr. Mahesh Joshi (got: ${regUser.parentName})`);
@@ -380,6 +384,7 @@ async function runTestSuite() {
       qualification: 'Ph.D in Molecular Genetics'
     });
     assert(bioTeacherRes.status === 201, 'Biology teacher registers successfully with custom subject (HTTP 201)');
+    if (bioTeacherRes.data?.user?.id) createdTestUserIds.push(bioTeacherRes.data.user.id);
     const bioTeacherToken = bioTeacherRes.data.token;
 
     // 10.3 /api/auth/me returns teacher custom subject (NOT Mathematics)
@@ -408,6 +413,7 @@ async function runTestSuite() {
       parentPhone: '9822330000'
     });
     assert(freshStudentRes.status === 201, 'Fresh student Tanvi Kulkarni registered successfully (HTTP 201)');
+    if (freshStudentRes.data?.user?.id) createdTestUserIds.push(freshStudentRes.data.user.id);
     const freshStudentToken = freshStudentRes.data.token;
     const freshStudentId = freshStudentRes.data.user.id;
 
@@ -434,6 +440,26 @@ async function runTestSuite() {
     assert(!!matchingSession, 'Newly scheduled Biology session reflects live in student logged-in dashboard!');
     assert(matchingSession.teacherName === 'Dr. Neha Sen', 'Student session shows correct teacher name');
     assert(matchingSession.meetLink === 'https://meet.google.com/bio-tanvi-demo', 'Student session shows correct Google Meet link');
+
+    // -------------------------------------------------------------------------
+    // 11. Automated Teardown of Temporary Test Users
+    // -------------------------------------------------------------------------
+    console.log('\n--- 11. Automated Teardown of Temporary Test Users ---');
+    let cleanupSuccess = 0;
+    for (const userId of createdTestUserIds) {
+      try {
+        const delRes = await request('DELETE', `/admin/users/${userId}`, null, adminToken);
+        if (delRes.status === 200) {
+          console.log(`🧹 Cleaned up temporary test user: ${userId}`);
+          cleanupSuccess++;
+        } else {
+          console.warn(`⚠️ Failed to teardown user ${userId}: status ${delRes.status}`);
+        }
+      } catch (err) {
+        console.warn(`⚠️ Teardown error for user ${userId}:`, err.message);
+      }
+    }
+    assert(cleanupSuccess === createdTestUserIds.length, `All ${createdTestUserIds.length} temporary test users successfully purged from database`);
 
     // -------------------------------------------------------------------------
     // SUMMARY
