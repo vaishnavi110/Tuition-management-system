@@ -41,7 +41,8 @@ import {
   Info,
   Users,
   PhoneCall,
-  MessageSquare
+  MessageSquare,
+  Menu
 } from 'lucide-react';
 
 export default function DashboardPage() {
@@ -56,6 +57,21 @@ export default function DashboardPage() {
   const [classLogs, setClassLogs] = useState([]);
   const [monthlyHours, setMonthlyHours] = useState(0);
   const [loading, setLoading] = useState(true);
+
+  // Sidebar Navigation & Mobile Drawer State
+  const [activeTab, setActiveTab] = useState(() => {
+    if (role === 'STUDENT') return 'CLASSES';
+    if (role === 'TEACHER') return 'SCHEDULE';
+    return 'OVERVIEW';
+  });
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // Sync activeTab whenever role changes (e.g. via demo switcher)
+  useEffect(() => {
+    if (role === 'STUDENT') setActiveTab('CLASSES');
+    else if (role === 'TEACHER') setActiveTab('SCHEDULE');
+    else setActiveTab('OVERVIEW');
+  }, [role]);
 
   // Modals
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
@@ -576,22 +592,63 @@ export default function DashboardPage() {
     return matchesSearch && matchesSubject;
   });
 
+  const getHeaderTitle = () => {
+    if (role === 'STUDENT') {
+      if (activeTab === 'CLASSES') return 'Scheduled Classes';
+      if (activeTab === 'HISTORY') return "Completed Classes";
+      if (activeTab === 'FEES') return 'Monthly Fee Bill';
+      if (activeTab === 'HOMEWORK') return 'Homework & Practice';
+      return 'Student Dashboard';
+    }
+    if (role === 'TEACHER') {
+      if (activeTab === 'SCHEDULE') return 'Class Schedule';
+      if (activeTab === 'LOG_ENTRY') return 'Save Class Log';
+      if (activeTab === 'HOURS') return 'Hours & Payment';
+      return 'Teacher Dashboard';
+    }
+    if (role === 'ADMIN') {
+      if (activeTab === 'OVERVIEW') return 'Academy Overview';
+      if (activeTab === 'DIRECTORY') return 'Academy Directory';
+      if (activeTab === 'INVITES') return 'Teacher & Staff Invites';
+      if (activeTab === 'LOGS_AUDIT') return 'Class Logs Audit';
+      if (activeTab === 'SIMULATOR') return 'Revenue Simulator';
+      if (activeTab === 'RATES') return 'Grade Fee Rates';
+      return 'Admin Dashboard';
+    }
+    return 'Dashboard';
+  };
+
   if (!user) return null;
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col justify-between selection:bg-indigo-500 selection:text-white">
-      
-      {/* 🌟 Authenticated Header */}
-      <header className="bg-white/80 border-b border-slate-200/80 backdrop-blur-md sticky top-0 z-40 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          
+    <div className="flex h-screen bg-slate-50 text-slate-900 overflow-hidden font-sans selection:bg-indigo-500 selection:text-white">
+
+      {/* Mobile Drawer Backdrop */}
+      {isMobileMenuOpen && (
+        <div 
+          className="fixed inset-0 z-40 bg-slate-900/50 backdrop-blur-sm md:hidden animate-fadeIn"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
+      {/* 🌟 Fixed Left Sidebar (Sticky / Non-Scrolling) */}
+      <aside className={`
+        fixed md:static inset-y-0 left-0 z-50
+        w-64 h-full bg-white border-r border-slate-200
+        flex flex-col justify-between shrink-0 select-none
+        transition-transform duration-200 ease-in-out shadow-lg md:shadow-none
+        ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+      `}>
+        
+        {/* Brand Header */}
+        <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-600 flex items-center justify-center text-white shadow-md shadow-indigo-100">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-600 flex items-center justify-center text-white shadow-md shadow-indigo-100 shrink-0">
               <GraduationCap className="w-6 h-6" />
             </div>
             <div>
-              <span className="font-extrabold text-lg text-slate-900 tracking-tight">TuitionHub</span>
-              <span className={`ml-2 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+              <span className="font-extrabold text-lg text-slate-900 tracking-tight block leading-tight">TuitionHub</span>
+              <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border inline-block mt-0.5 ${
                 role === 'ADMIN' ? 'bg-purple-50 text-purple-700 border-purple-200' :
                 role === 'TEACHER' ? 'bg-blue-50 text-blue-700 border-blue-200' :
                 'bg-emerald-50 text-emerald-700 border-emerald-200'
@@ -601,67 +658,285 @@ export default function DashboardPage() {
             </div>
           </div>
 
+          <button 
+            onClick={() => setIsMobileMenuOpen(false)} 
+            className="md:hidden p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+            aria-label="Close menu"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Navigation Menu */}
+        <div className="flex-1 overflow-y-auto p-3 space-y-1">
+          <div className="px-3 py-2 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+            Navigation
+          </div>
+
+          {/* Student Menu */}
+          {role === 'STUDENT' && (
+            <>
+              <button
+                onClick={() => { setActiveTab('CLASSES'); setIsMobileMenuOpen(false); }}
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === 'CLASSES'
+                    ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-200'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                }`}
+              >
+                <Calendar className="w-4 h-4 shrink-0" />
+                <span>Scheduled Classes</span>
+              </button>
+
+              <button
+                onClick={() => { setActiveTab('HISTORY'); setIsMobileMenuOpen(false); }}
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === 'HISTORY'
+                    ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-200'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                }`}
+              >
+                <Clock className="w-4 h-4 shrink-0" />
+                <span>Completed Classes</span>
+              </button>
+
+              <button
+                onClick={() => { setActiveTab('FEES'); setIsMobileMenuOpen(false); }}
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === 'FEES'
+                    ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-200'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                }`}
+              >
+                <CreditCard className="w-4 h-4 shrink-0" />
+                <span>Monthly Fee Bill</span>
+              </button>
+
+              <button
+                onClick={() => { setActiveTab('HOMEWORK'); setIsMobileMenuOpen(false); }}
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === 'HOMEWORK'
+                    ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-200'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                }`}
+              >
+                <BookOpen className="w-4 h-4 shrink-0" />
+                <span>Homework & Practice</span>
+              </button>
+            </>
+          )}
+
+          {/* Teacher Menu */}
+          {role === 'TEACHER' && (
+            <>
+              <button
+                onClick={() => { setActiveTab('SCHEDULE'); setIsMobileMenuOpen(false); }}
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === 'SCHEDULE'
+                    ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-200'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                }`}
+              >
+                <Calendar className="w-4 h-4 shrink-0" />
+                <span>Class Schedule</span>
+              </button>
+
+              <button
+                onClick={() => { setActiveTab('LOG_ENTRY'); setIsMobileMenuOpen(false); }}
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === 'LOG_ENTRY'
+                    ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-200'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                }`}
+              >
+                <Clock className="w-4 h-4 shrink-0" />
+                <span>Save Class Log</span>
+              </button>
+
+              <button
+                onClick={() => { setActiveTab('HOURS'); setIsMobileMenuOpen(false); }}
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === 'HOURS'
+                    ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-200'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                }`}
+              >
+                <Layers className="w-4 h-4 shrink-0" />
+                <span>Hours & Payment</span>
+              </button>
+            </>
+          )}
+
+          {/* Admin Menu */}
+          {role === 'ADMIN' && (
+            <>
+              <button
+                onClick={() => { setActiveTab('OVERVIEW'); setIsMobileMenuOpen(false); }}
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === 'OVERVIEW'
+                    ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-200'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                }`}
+              >
+                <Layers className="w-4 h-4 shrink-0" />
+                <span>Academy Overview</span>
+              </button>
+
+              <button
+                onClick={() => { setActiveTab('DIRECTORY'); setIsMobileMenuOpen(false); }}
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === 'DIRECTORY'
+                    ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-200'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                }`}
+              >
+                <Users className="w-4 h-4 shrink-0" />
+                <span>Academy Directory</span>
+              </button>
+
+              <button
+                onClick={() => { setActiveTab('INVITES'); setIsMobileMenuOpen(false); }}
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === 'INVITES'
+                    ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-200'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                }`}
+              >
+                <Send className="w-4 h-4 shrink-0" />
+                <span>Teacher & Staff Invites</span>
+              </button>
+
+              <button
+                onClick={() => { setActiveTab('LOGS_AUDIT'); setIsMobileMenuOpen(false); }}
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === 'LOGS_AUDIT'
+                    ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-200'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                }`}
+              >
+                <FileText className="w-4 h-4 shrink-0" />
+                <span>Class Logs Audit</span>
+              </button>
+
+              <button
+                onClick={() => { setActiveTab('SIMULATOR'); setIsMobileMenuOpen(false); }}
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === 'SIMULATOR'
+                    ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-200'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                }`}
+              >
+                <Calculator className="w-4 h-4 shrink-0" />
+                <span>Revenue Simulator</span>
+              </button>
+
+              <button
+                onClick={() => { setActiveTab('RATES'); setIsMobileMenuOpen(false); }}
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === 'RATES'
+                    ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-200'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                }`}
+              >
+                <CreditCard className="w-4 h-4 shrink-0" />
+                <span>Grade Fee Rates</span>
+              </button>
+            </>
+          )}
+        </div>
+
+        {/* 🔒 Pinned Bottom Profile & Sign Out (Fixed to bottom of sidebar) */}
+        <div className="p-3 border-t border-slate-100 bg-slate-50/70 space-y-2">
+          {/* User Profile Card */}
+          <button
+            onClick={() => { openProfileModal(); setIsMobileMenuOpen(false); }}
+            className="w-full p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-all flex items-center gap-2.5 text-left group shadow-xs"
+            title="Open Profile Settings"
+          >
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-xs shadow-sm shrink-0 ${
+              role === 'ADMIN' ? 'bg-purple-600' :
+              role === 'TEACHER' ? 'bg-blue-600' : 'bg-emerald-600'
+            }`}>
+              {user.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+            </div>
+            <div className="flex-1 min-w-0">
+              <span className="text-xs font-bold text-slate-900 block truncate group-hover:text-indigo-600 transition-colors">
+                {user.name}
+              </span>
+              <span className="text-[10px] text-slate-400 block truncate">
+                {user.emailOrPhone}
+              </span>
+            </div>
+            <User className="w-3.5 h-3.5 text-slate-400 group-hover:text-indigo-600 transition-colors shrink-0" />
+          </button>
+
+          {/* Sign Out Button */}
+          <button
+            onClick={handleSignOut}
+            className="w-full px-3 py-2 rounded-xl border border-transparent text-xs font-bold text-slate-600 hover:text-red-600 hover:bg-red-50 hover:border-red-200 transition-all flex items-center justify-center gap-2"
+          >
+            <LogOut className="w-4 h-4" />
+            <span>Sign Out</span>
+          </button>
+        </div>
+      </aside>
+
+      {/* 🚀 Right Hand Side Independent Scrollable Content Area */}
+      <div className="flex-1 h-full flex flex-col overflow-hidden min-w-0">
+        
+        {/* Top Header */}
+        <header className="h-16 shrink-0 bg-white border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between z-30">
+          <div className="flex items-center gap-3">
+            {/* Hamburger button for Mobile */}
+            <button
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="md:hidden p-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100"
+              aria-label="Open Navigation Menu"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+
+            <div>
+              <h1 className="text-base sm:text-lg font-extrabold text-slate-900 tracking-tight">
+                {getHeaderTitle()}
+              </h1>
+            </div>
+          </div>
+
           {/* ⚡ 1-Click Fast Role Switcher in Header (For Demo Presentation) */}
-          <div className="hidden md:flex items-center gap-1.5 px-2 py-1 bg-slate-100/90 rounded-2xl border border-slate-200">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-1.5">
+          <div className="flex items-center gap-1.5 px-2 py-1 bg-slate-100 rounded-2xl border border-slate-200">
+            <span className="hidden sm:inline text-[10px] font-bold uppercase tracking-wider text-slate-400 px-1">
               Live Role Switch:
             </span>
             <button 
               onClick={() => handleSwitchDemoRole('STUDENT')}
-              className={`px-3 py-1 rounded-xl text-xs font-bold transition-all ${
+              className={`px-2.5 sm:px-3 py-1 rounded-xl text-xs font-bold transition-all ${
                 role === 'STUDENT' ? 'bg-white shadow text-emerald-700 border border-emerald-200' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              👩‍🎓 Student
+              👩‍🎓 <span className="hidden sm:inline">Student</span>
             </button>
             <button 
               onClick={() => handleSwitchDemoRole('TEACHER')}
-              className={`px-3 py-1 rounded-xl text-xs font-bold transition-all ${
+              className={`px-2.5 sm:px-3 py-1 rounded-xl text-xs font-bold transition-all ${
                 role === 'TEACHER' ? 'bg-white shadow text-blue-700 border border-blue-200' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              👨‍🏫 Teacher
+              👨‍🏫 <span className="hidden sm:inline">Teacher</span>
             </button>
             <button 
               onClick={() => handleSwitchDemoRole('ADMIN')}
-              className={`px-3 py-1 rounded-xl text-xs font-bold transition-all ${
+              className={`px-2.5 sm:px-3 py-1 rounded-xl text-xs font-bold transition-all ${
                 role === 'ADMIN' ? 'bg-white shadow text-purple-700 border border-purple-200' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              👑 Admin
+              👑 <span className="hidden sm:inline">Admin</span>
             </button>
           </div>
+        </header>
 
-          <div className="flex items-center space-x-3 sm:space-x-4">
-            <div className="text-right hidden sm:block">
-              <div className="text-xs font-bold text-slate-900">{user.name}</div>
-              <div className="text-[10px] font-semibold text-slate-400">{user.emailOrPhone}</div>
-            </div>
-
-            {/* 👤 My Profile Button */}
-            <button
-              onClick={openProfileModal}
-              className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-100 hover:border-slate-300 transition-all flex items-center gap-1.5"
-            >
-              <User className="w-3.5 h-3.5 text-indigo-600" />
-              <span>My Profile</span>
-            </button>
-
-            {/* Sign Out Button */}
-            <button
-              onClick={handleSignOut}
-              className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:text-red-600 hover:bg-red-50 hover:border-red-200 transition-all flex items-center gap-1.5"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Sign Out</span>
-            </button>
-          </div>
-
-        </div>
-      </header>
-
-      {/* 🚀 Main Workspace Area */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full">
+        {/* Scrollable Content Pane */}
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6">
 
         {/* Global Toast Notification */}
         {actionSuccess && (
@@ -719,7 +994,8 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {/* List of Scheduled Classes */}
+            {/* Tab 1: List of Scheduled Classes */}
+            {activeTab === 'CLASSES' && (
             <div className="space-y-4">
               <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                 <Calendar className="w-5 h-5 text-indigo-600" />
@@ -780,7 +1056,10 @@ export default function DashboardPage() {
               })}
             </div>
 
-            {/* Verified Post-Class History for Student */}
+            )}
+
+            {/* Tab 2: Verified Post-Class History for Student */}
+            {activeTab === 'HISTORY' && (
             <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
               <div className="flex items-center justify-between mb-4">
                 <div>
@@ -834,11 +1113,11 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Fee & Homework Section */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              
-              {/* Fee Card */}
-              <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
+            )}
+
+            {/* Tab 3: Monthly Fee Bill */}
+            {activeTab === 'FEES' && (
+              <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200/80 shadow-sm max-w-2xl">
                 <div className="flex items-center justify-between mb-4">
                   <h4 className="font-bold text-base flex items-center gap-2 text-slate-900">
                     <CreditCard className="w-5 h-5 text-indigo-600" />
@@ -929,8 +1208,11 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {/* Homework Card */}
-              <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col justify-between">
+            )}
+
+            {/* Tab 4: Homework & Practice */}
+            {activeTab === 'HOMEWORK' && (
+              <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col justify-between max-w-2xl">
                 <div>
                   <div className="flex items-center justify-between mb-4">
                     <h4 className="font-bold text-base flex items-center gap-2 text-slate-900">
@@ -977,8 +1259,7 @@ export default function DashboardPage() {
                   </label>
                 </div>
               </div>
-
-            </div>
+            )}
 
           </div>
         )}
@@ -1030,6 +1311,9 @@ export default function DashboardPage() {
               </div>
             )}
 
+            {/* Tab 1: Class Schedule & Upcoming Classes */}
+            {activeTab === 'SCHEDULE' && (
+              <>
             {/* Teacher Performance & Hours Card */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
@@ -1124,7 +1408,11 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Post-Class Logging Engine Form */}
+              </>
+            )}
+
+            {/* Tab 2: Save Class Log */}
+            {activeTab === 'LOG_ENTRY' && (
             <div className="p-6 sm:p-8 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6">
                 <div>
@@ -1333,6 +1621,32 @@ export default function DashboardPage() {
               )}
             </div>
 
+            )}
+
+            {/* Tab 3: Hours & Payment History */}
+            {activeTab === 'HOURS' && (
+              <>
+            {/* Teacher Performance & Hours Summary Card */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+              <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
+                <span className="text-xs font-semibold text-slate-500">Recorded Teaching Hours</span>
+                <div className="text-3xl font-extrabold text-slate-900 mt-1">{Number((monthlyHours ?? 0).toFixed(2))} hrs</div>
+                <span className="text-[11px] text-emerald-600 font-bold mt-0.5 block">Recorded decimal duration</span>
+              </div>
+              <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
+                <span className="text-xs font-semibold text-slate-500">Teacher Payment</span>
+                <div className="text-3xl font-extrabold text-emerald-600 mt-1">
+                  ₹{Math.round(Number((monthlyHours ?? 0).toFixed(2)) * (user.hourlyRate || 250)).toLocaleString('en-IN')}
+                </div>
+                <span className="text-[11px] text-slate-400 font-medium mt-0.5 block">Calculated at ₹{user.hourlyRate || 250} per hour</span>
+              </div>
+              <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
+                <span className="text-xs font-semibold text-slate-500">Classes Completed</span>
+                <div className="text-3xl font-extrabold text-indigo-600 mt-1">{classLogs.length}</div>
+                <span className="text-[11px] text-slate-400 font-medium mt-0.5 block">Automatic calculations</span>
+              </div>
+            </div>
+
             {/* Teacher's Class Logs Table */}
             <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
               <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2">
@@ -1374,6 +1688,8 @@ export default function DashboardPage() {
                 </table>
               </div>
             </div>
+              </>
+            )}
 
           </div>
         )}
@@ -1405,6 +1721,9 @@ export default function DashboardPage() {
               </div>
             </div>
 
+            {/* Tab 1: Academy Overview & Metrics */}
+            {activeTab === 'OVERVIEW' && (
+              <>
             {/* Live Metrics */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
@@ -1437,7 +1756,59 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* INVITATION MANAGER WIDGET */}
+            {/* Overview Quick Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
+                <h4 className="font-bold text-slate-900 text-sm mb-2 flex items-center gap-2">
+                  <Users className="w-4 h-4 text-indigo-600" /> Academy Roster Snapshot
+                </h4>
+                <p className="text-xs text-slate-500 mb-4">Quick summary of registered members.</p>
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center p-3 rounded-xl bg-slate-50 text-xs">
+                    <span className="font-semibold text-slate-700">Enrolled Students</span>
+                    <span className="font-bold text-indigo-600">{adminDirectory.studentsCount || 0}</span>
+                  </div>
+                  <div className="flex justify-between items-center p-3 rounded-xl bg-slate-50 text-xs">
+                    <span className="font-semibold text-slate-700">Authorized Teachers</span>
+                    <span className="font-bold text-purple-600">{adminDirectory.teachersCount || 0}</span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setActiveTab('DIRECTORY')}
+                  className="mt-4 w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 transition-colors"
+                >
+                  Open Full Academy Directory &rarr;
+                </button>
+              </div>
+
+              <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
+                <h4 className="font-bold text-slate-900 text-sm mb-2 flex items-center gap-2">
+                  <KeyRound className="w-4 h-4 text-indigo-600" /> Active Invitation Keys
+                </h4>
+                <p className="text-xs text-slate-500 mb-4">Registration gatekeeper codes.</p>
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center p-3 rounded-xl bg-slate-50 text-xs">
+                    <span className="font-semibold text-slate-700">Teacher Code</span>
+                    <span className="font-mono font-bold text-indigo-700">TUTOR-2026-INVITE</span>
+                  </div>
+                  <div className="flex justify-between items-center p-3 rounded-xl bg-slate-50 text-xs">
+                    <span className="font-semibold text-slate-700">Admin Code</span>
+                    <span className="font-mono font-bold text-purple-700">ADMIN-SUPER-2026</span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setActiveTab('INVITES')}
+                  className="mt-4 w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 transition-colors"
+                >
+                  Generate New Invitation &rarr;
+                </button>
+              </div>
+            </div>
+              </>
+            )}
+
+            {/* Tab 3: INVITATION MANAGER WIDGET */}
+            {activeTab === 'INVITES' && (
             <div className="p-6 sm:p-7 rounded-2xl bg-white border border-indigo-100 shadow-md shadow-indigo-50/50 relative overflow-hidden">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5 pb-4 border-b border-slate-100">
                 <div>
@@ -1533,7 +1904,10 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* ACADEMY DIRECTORY (STUDENTS & TEACHERS ROSTER) */}
+            )}
+
+            {/* Tab 2: ACADEMY DIRECTORY (STUDENTS & TEACHERS ROSTER) */}
+            {activeTab === 'DIRECTORY' && (
             <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5 pb-4 border-b border-slate-100">
                 <div>
@@ -1816,7 +2190,10 @@ export default function DashboardPage() {
               )}
             </div>
 
-            {/* 🔒 Academy Financial Economics & Profit Margin Simulator (Strictly for Admin) */}
+            )}
+
+            {/* Tab 5: Academy Financial Economics & Profit Margin Simulator */}
+            {activeTab === 'SIMULATOR' && (
             <div className="p-6 sm:p-7 rounded-2xl bg-gradient-to-br from-slate-900 to-indigo-950 text-white shadow-xl">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 pb-4 border-b border-white/10">
                 <div>
@@ -1920,7 +2297,10 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Academy Class Logs Audit with Search & Filters */}
+            )}
+
+            {/* Tab 4: Academy Class Logs Audit with Search & Filters */}
+            {activeTab === 'LOGS_AUDIT' && (
             <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                 <div>
@@ -2005,7 +2385,10 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Configurable Grade Rate Cards Matrix */}
+            )}
+
+            {/* Tab 6: Configurable Grade Rate Cards Matrix */}
+            {activeTab === 'RATES' && (
             <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
               <div className="flex items-center justify-between mb-4">
                 <div>
@@ -2047,11 +2430,21 @@ export default function DashboardPage() {
                 </table>
               </div>
             </div>
+            )}
 
           </div>
         )}
 
+        {/* Footer */}
+        <footer className="border-t border-slate-200 py-6 text-center text-xs text-slate-400 mt-12">
+          <div className="max-w-5xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <span>TuitionHub Academy &bull; Private Portal</span>
+            <span className="text-emerald-600 font-semibold">● Class Logging & Attendance Active</span>
+          </div>
+        </footer>
+
       </main>
+    </div>
 
       {/* 👤 ROLE-BASED USER PROFILE MODAL & EDITOR */}
       {isProfileModalOpen && (
@@ -2595,13 +2988,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Footer */}
-      <footer className="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-400">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <span>TuitionHub Academy &bull; Private Portal</span>
-          <span className="text-emerald-600 font-semibold">● Class Logging & Attendance Active</span>
-        </div>
-      </footer>
+
 
     </div>
   );
