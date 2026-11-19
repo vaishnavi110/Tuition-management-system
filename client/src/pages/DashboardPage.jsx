@@ -191,7 +191,7 @@ export default function DashboardPage() {
       });
 
       setIsProfileModalOpen(false);
-      setActionSuccess('✅ Profile updated successfully!');
+      setActionSuccess('Profile updated.');
       setTimeout(() => setActionSuccess(''), 3000);
     } catch (err) {
       alert('Failed to update profile.');
@@ -309,12 +309,12 @@ export default function DashboardPage() {
     try {
       const res = await axios.post('/api/attendance/join', { sessionId: session.id });
       setAttendanceRecords(prev => ({ ...prev, [session.id]: res.data.record }));
-      setActionSuccess(`📡 Meeting link opened at ${res.data.record.linkOpenedDisplay}. Final attendance confirmed by teacher post-class.`);
+      setActionSuccess(`Class joined at ${res.data.record.linkOpenedDisplay}. Attendance recorded.`);
       setTimeout(() => setActionSuccess(''), 5000);
     } catch (err) {
       console.error('Failed to log meeting link access', err);
       // DO NOT fabricate fake PRESENT state!
-      setAttendanceError(`Failed to save meeting link access for "${session.subject}". Server did not respond.`);
+      setAttendanceError(`Failed to save join time for "${session.subject}". Server did not respond.`);
       setFailedSessionRetry(session);
     }
   };
@@ -325,7 +325,7 @@ export default function DashboardPage() {
     try {
       const res = await axios.post('/api/attendance/join', { sessionId: failedSessionRetry.id });
       setAttendanceRecords(prev => ({ ...prev, [failedSessionRetry.id]: res.data.record }));
-      setActionSuccess(`📡 Meeting link access logged on retry at ${res.data.record.linkOpenedDisplay}.`);
+      setActionSuccess(`Class join time recorded at ${res.data.record.linkOpenedDisplay}.`);
       setAttendanceError(null);
       setFailedSessionRetry(null);
       setTimeout(() => setActionSuccess(''), 5000);
@@ -370,7 +370,7 @@ export default function DashboardPage() {
       setClassLogs(prev => [newLog, ...prev]);
       setMonthlyHours(prev => Number((prev + newLog.billableHours).toFixed(2)));
       setClassLogged(true);
-      setActionSuccess(`🎉 Post-class log saved! ${newLog.billableHours} hrs verified for billing.`);
+      setActionSuccess(`Class log saved. ${newLog.billableHours} hours added to the fee bill.`);
       setTimeout(() => setActionSuccess(''), 5000);
     } catch (err) {
       setLogSubmitError(err.response?.data?.error || 'Failed to submit post-class log. Tap retry to try again.');
@@ -407,7 +407,7 @@ export default function DashboardPage() {
       });
       setSessions([res.data.session, ...sessions]);
       setIsScheduleModalOpen(false);
-      setActionSuccess('1-on-1 Class scheduled successfully!');
+      setActionSuccess('Class scheduled.');
       setTimeout(() => setActionSuccess(''), 3000);
     } catch (err) {
       alert(err.response?.data?.error || 'Failed to schedule class');
@@ -416,11 +416,11 @@ export default function DashboardPage() {
 
   // Cancel a session
   const handleCancelSession = async (sessionId) => {
-    if (!window.confirm('Are you sure you want to cancel this class? (As per policy, 0 hours will be billed).')) return;
+    if (!window.confirm('Are you sure you want to cancel this class? No amount will be billed.')) return;
     try {
       const res = await axios.patch(`/api/schedule/sessions/${sessionId}/cancel`);
       setSessions(sessions.map(s => s.id === sessionId ? res.data.session : s));
-      setActionSuccess('Class cancelled. ₹0 charged as per policy.');
+      setActionSuccess('Class cancelled. No charge.');
       setTimeout(() => setActionSuccess(''), 3000);
     } catch (err) {
       alert('Failed to cancel session');
@@ -441,7 +441,7 @@ export default function DashboardPage() {
       setNewGradeName('');
       setNewStudentRate('');
       setNewTeacherRate('');
-      setActionSuccess('Grade rate card added successfully!');
+      setActionSuccess('Grade fee rate added.');
       setTimeout(() => setActionSuccess(''), 3000);
     } catch (err) {
       alert(err.response?.data?.error || 'Failed to add grade');
@@ -462,7 +462,7 @@ export default function DashboardPage() {
         studentsCount: Math.max(0, (prev.studentsCount || 1) - 1),
         teachersCount: Math.max(0, (prev.teachersCount || 1) - 1)
       }));
-      setActionSuccess(`Removed "${userName}" from academy directory.`);
+      setActionSuccess(`Removed "${userName}" from directory.`);
       setTimeout(() => setActionSuccess(''), 3000);
     } catch (err) {
       alert(err.response?.data?.error || 'Failed to remove user');
@@ -479,7 +479,7 @@ export default function DashboardPage() {
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         previewUrl: URL.createObjectURL(file)
       });
-      setActionSuccess('✅ Homework notebook uploaded and submitted for teacher review!');
+      setActionSuccess('Work submitted for teacher review.');
       setTimeout(() => setActionSuccess(''), 4000);
     }
   };
@@ -498,8 +498,8 @@ export default function DashboardPage() {
 
   const handleCopyWhatsAppInvite = () => {
     const link = getGeneratedInviteLink();
-    const roleTitle = inviteTargetRole === 'TEACHER' ? '1-on-1 Tutor' : 'Operations Staff';
-    const message = `Hello! You have been invited to join TuitionHub Academy as an authorized ${roleTitle}. Please complete your onboarding registration here: ${link}`;
+    const roleTitle = inviteTargetRole === 'TEACHER' ? 'Teacher' : 'Staff';
+    const message = `Hello! You have been invited to join TuitionHub Academy as an authorized ${roleTitle}. Please complete your registration here: ${link}`;
     navigator.clipboard.writeText(message);
     setCopiedWhatsApp(true);
     setTimeout(() => setCopiedWhatsApp(false), 2500);
@@ -596,7 +596,7 @@ export default function DashboardPage() {
                 role === 'TEACHER' ? 'bg-blue-50 text-blue-700 border-blue-200' :
                 'bg-emerald-50 text-emerald-700 border-emerald-200'
               }`}>
-                {role} Console
+                {role === 'ADMIN' ? 'Admin Portal' : role === 'TEACHER' ? 'Teacher Portal' : 'Student Portal'}
               </span>
             </div>
           </div>
@@ -682,7 +682,7 @@ export default function DashboardPage() {
                   Welcome back, {user.name} 👋
                 </h2>
                 <p className="text-sm text-slate-500 mt-1">
-                  {user.grade || 'Grade 10'} &bull; Mathematics &bull; Verified Hourly Rate: ₹{user.hourlyRate || 400}/hr
+                  {user.grade || 'Grade 10'} &bull; Mathematics &bull; Fee rate: ₹{user.hourlyRate || 400} per hour
                 </p>
               </div>
 
@@ -713,13 +713,13 @@ export default function DashboardPage() {
                     onClick={handleRetryJoinLog}
                     className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg text-xs shrink-0 transition-colors"
                   >
-                    Retry Saving Telemetry
+                    Retry Recording Join Time
                   </button>
                 )}
               </div>
             )}
 
-            {/* List of Scheduled Classes with Smart Auto-Attendance */}
+            {/* List of Scheduled Classes */}
             <div className="space-y-4">
               <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                 <Calendar className="w-5 h-5 text-indigo-600" />
@@ -741,7 +741,7 @@ export default function DashboardPage() {
                               ? 'text-blue-700 bg-blue-50 border-blue-200' 
                               : 'text-indigo-700 bg-indigo-50 border-indigo-200'
                           }`}>
-                            {linkOpened ? `Meeting link opened at ${attendance.linkOpenedDisplay}` : `Scheduled: ${s.date}`}
+                            {linkOpened ? `Join time recorded at ${attendance.linkOpenedDisplay}` : `Scheduled: ${s.date}`}
                           </span>
                         </div>
                         <h4 className="text-xl font-bold text-slate-900">{s.subject}: {s.topic}</h4>
@@ -752,7 +752,7 @@ export default function DashboardPage() {
                         {linkOpened && (
                           <div className="mt-2 text-xs font-medium text-blue-700 flex items-center gap-1.5 bg-blue-50/70 px-2.5 py-1 rounded-lg border border-blue-100">
                             <Clock className="w-3.5 h-3.5 text-blue-600" />
-                            <span>Meeting link opened at {attendance.linkOpenedDisplay}. Final attendance confirmed by teacher post-class.</span>
+                            <span>Join time recorded at ${attendance.linkOpenedDisplay}. Attendance confirmed by teacher.</span>
                           </div>
                         )}
                       </div>
@@ -786,12 +786,12 @@ export default function DashboardPage() {
                 <div>
                   <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
                     <FileText className="w-4 h-4 text-indigo-600" />
-                    This Month's Completed & Verified Classes
+                    This Month's Completed Classes
                   </h3>
-                  <p className="text-xs text-slate-500">Verified post-class duration logged by your teacher</p>
+                  <p className="text-xs text-slate-500">Class duration recorded by your teacher</p>
                 </div>
                 <span className="text-xs font-bold px-3 py-1 bg-indigo-50 text-indigo-700 rounded-full border border-indigo-200">
-                  {classLogs.length} Sessions Logged
+                  {classLogs.length} Classes Recorded
                 </span>
               </div>
 
@@ -802,7 +802,7 @@ export default function DashboardPage() {
                       <th className="py-2.5">Date</th>
                       <th className="py-2.5">Subject & Topics Covered</th>
                       <th className="py-2.5">Teacher</th>
-                      <th className="py-2.5">Verified Duration</th>
+                      <th className="py-2.5">Attended Duration</th>
                       <th className="py-2.5">Homework Note</th>
                     </tr>
                   </thead>
@@ -842,7 +842,7 @@ export default function DashboardPage() {
                 <div className="flex items-center justify-between mb-4">
                   <h4 className="font-bold text-base flex items-center gap-2 text-slate-900">
                     <CreditCard className="w-5 h-5 text-indigo-600" />
-                    November Fee Statement
+                    November Fee Bill
                   </h4>
                   <span className={`text-xs font-bold px-3 py-1 rounded-full ${
                     Math.round(Number((monthlyHours ?? 0).toFixed(2)) * (user.hourlyRate || 400)) === 0
@@ -850,8 +850,8 @@ export default function DashboardPage() {
                       : 'bg-amber-50 text-amber-700 border border-amber-200'
                   }`}>
                     {Math.round(Number((monthlyHours ?? 0).toFixed(2)) * (user.hourlyRate || 400)) === 0 
-                      ? 'NO DUES' 
-                      : 'PAYMENT DUE'}
+                      ? 'No amount due' 
+                      : 'Payment due'}
                   </span>
                 </div>
 
@@ -875,8 +875,8 @@ export default function DashboardPage() {
                       <strong className="font-semibold text-slate-800">{Number((monthlyHours ?? 0).toFixed(2))} Hours</strong>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-slate-500">Hourly Rate ({user.grade || 'Grade 10'}):</span>
-                      <strong className="font-semibold text-slate-800">₹{user.hourlyRate || 400} / Hour</strong>
+                      <span className="text-slate-500">Fee Rate ({user.grade || 'Grade 10'}):</span>
+                      <strong className="font-semibold text-slate-800">₹{user.hourlyRate || 400} per hour</strong>
                     </div>
                     <div className="flex justify-between pt-3 border-t border-slate-100 text-base">
                       <span className="font-bold text-slate-900">Total Payable Fee:</span>
@@ -888,21 +888,21 @@ export default function DashboardPage() {
                 )}
 
                 <div className="mt-5 pt-4 border-t border-slate-100 flex flex-col gap-3">
-                  {/* Disabled Checkout with Honest Roadmap Label */}
+                  {/* Disabled Checkout */}
                   <div className="space-y-2">
                     <button 
                       disabled
                       className="w-full py-3 rounded-xl font-bold text-xs bg-slate-100 border border-slate-200 text-slate-400 cursor-not-allowed flex items-center justify-center gap-2 shadow-inner"
-                      title="Online payment gateway checkout is scheduled for v1.0 release"
+                      title="Online payment gateway checkout is scheduled for a future update"
                     >
                       <CreditCard className="w-4 h-4 text-slate-400" />
-                      <span>Online Payments (Razorpay & UPI) — Coming Soon</span>
+                      <span>Online Payments (UPI & Cards) — Planned for later</span>
                     </button>
 
-                    {/* Direct Academy Offline Settlement Instructions */}
+                    {/* Direct Academy Offline Payment Instructions */}
                     <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1">
                       <div className="flex items-center justify-between text-slate-800 font-bold">
-                        <span>Academy Fee Settlement</span>
+                        <span>Academy Fee Payment</span>
                         <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">Direct Transfer</span>
                       </div>
                       <p className="text-slate-500 text-[11px] leading-relaxed">
@@ -910,7 +910,7 @@ export default function DashboardPage() {
                       </p>
                     </div>
 
-                    {/* Digital Receipts Notice (Hidden until Razorpay Integration in Milestone 2) */}
+                    {/* Digital Receipts Notice */}
                     <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 space-y-1">
                       <div className="flex items-center justify-between">
                         <span className="font-bold text-slate-800 flex items-center gap-1.5">
@@ -918,18 +918,18 @@ export default function DashboardPage() {
                           <span>Official Payment Receipts</span>
                         </span>
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
-                          Coming Soon in v1.0
+                          Planned for later
                         </span>
                       </div>
                       <p className="text-[11px] text-slate-500 leading-relaxed">
-                        Official stamped payment receipts & PDF downloads will be generated automatically upon online checkout completion via Razorpay Gateway (scheduled in next release).
+                        Official payment receipts and PDF downloads will be available once online payments are enabled.
                       </p>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Homework Card with Real File Preview */}
+              {/* Homework Card */}
               <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col justify-between">
                 <div>
                   <div className="flex items-center justify-between mb-4">
@@ -938,7 +938,7 @@ export default function DashboardPage() {
                       Active Homework Assignment
                     </h4>
                     <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
-                      Coming Soon in v1.0 (Milestone 2)
+                      Planned for later
                     </span>
                   </div>
 
@@ -946,7 +946,7 @@ export default function DashboardPage() {
                     NCERT Exercise 4.2: Quadratic Formula Applications
                   </p>
                   <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                    Solve Questions 1 through 6 in notebook. Click photo of working and upload below for teacher review.
+                    Complete practice questions. Upload photo of completed work for teacher review.
                   </p>
 
                   {/* Uploaded File Confirmation */}
@@ -970,7 +970,7 @@ export default function DashboardPage() {
                   <label className="border-2 border-dashed border-slate-200 hover:border-indigo-400 rounded-2xl p-4 flex flex-col items-center justify-center cursor-pointer transition-colors bg-slate-50/50 hover:bg-indigo-50/20">
                     <Upload className="w-6 h-6 text-indigo-500 mb-1" />
                     <span className="text-xs font-bold text-slate-700">
-                      {uploadedHomeworkFile ? 'Upload New Photo / Re-submit' : 'Upload Notebook Photo'}
+                      {uploadedHomeworkFile ? 'Upload New Photo' : 'Upload Photo of Completed Work'}
                     </span>
                     <span className="text-[10px] text-slate-400 mt-0.5">JPG, PNG or PDF up to 10MB</span>
                     <input type="file" accept="image/*,.pdf" className="hidden" onChange={handleHomeworkUpload} />
@@ -991,10 +991,10 @@ export default function DashboardPage() {
             <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-                  Instructor Portal &bull; {user.name}
+                  Teacher Portal &bull; {user.name}
                 </h2>
                 <p className="text-sm text-slate-500 mt-1">
-                  1-on-1 Classes &bull; Compensation: ₹{user.hourlyRate || 250}/hr &bull; Auto-Attendance Verified
+                  1-on-1 Classes &bull; Teacher rate: ₹{user.hourlyRate || 250} per hour &bull; Attendance recorded
                 </p>
               </div>
 
@@ -1030,24 +1030,24 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {/* Teacher Performance & Verified Hours Card */}
+            {/* Teacher Performance & Hours Card */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
-                <span className="text-xs font-semibold text-slate-500">Verified Teaching Hours</span>
+                <span className="text-xs font-semibold text-slate-500">Recorded Teaching Hours</span>
                 <div className="text-3xl font-extrabold text-slate-900 mt-1">{Number((monthlyHours ?? 0).toFixed(2))} hrs</div>
-                <span className="text-[11px] text-emerald-600 font-bold mt-0.5 block">100% verified decimal duration</span>
+                <span className="text-[11px] text-emerald-600 font-bold mt-0.5 block">Recorded decimal duration</span>
               </div>
               <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
-                <span className="text-xs font-semibold text-slate-500">Accrued Teacher Payout</span>
+                <span className="text-xs font-semibold text-slate-500">Teacher Payment</span>
                 <div className="text-3xl font-extrabold text-emerald-600 mt-1">
                   ₹{Math.round(Number((monthlyHours ?? 0).toFixed(2)) * (user.hourlyRate || 250)).toLocaleString('en-IN')}
                 </div>
-                <span className="text-[11px] text-slate-400 font-medium mt-0.5 block">Calculated at ₹{user.hourlyRate || 250}/hr</span>
+                <span className="text-[11px] text-slate-400 font-medium mt-0.5 block">Calculated at ₹{user.hourlyRate || 250} per hour</span>
               </div>
               <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
                 <span className="text-xs font-semibold text-slate-500">Classes Completed</span>
                 <div className="text-3xl font-extrabold text-indigo-600 mt-1">{classLogs.length}</div>
-                <span className="text-[11px] text-slate-400 font-medium mt-0.5 block">Zero manual calculations</span>
+                <span className="text-[11px] text-slate-400 font-medium mt-0.5 block">Automatic calculations</span>
               </div>
             </div>
 
@@ -1075,7 +1075,7 @@ export default function DashboardPage() {
                             linkOpened ? 'bg-blue-50 text-blue-700 border border-blue-200' : 
                             'bg-indigo-50 text-indigo-700 border border-indigo-200'
                           }`}>
-                            {s.status === 'CANCELLED' ? 'CANCELLED (0 hrs)' : linkOpened ? 'LINK OPENED' : s.status}
+                            {s.status === 'CANCELLED' ? 'Cancelled (0 hrs)' : linkOpened ? 'JOIN TIME RECORDED' : s.status}
                           </span>
                           <span className="text-xs font-semibold text-slate-500">{s.date} &bull; {s.startTime} - {s.endTime} ({s.durationHours} hrs)</span>
                         </div>
@@ -1088,7 +1088,7 @@ export default function DashboardPage() {
                         {linkOpened ? (
                           <div className="text-xs font-semibold text-blue-700 flex items-center gap-1.5 mt-1">
                             <Clock className="w-3.5 h-3.5 text-blue-600" />
-                            <span>Meeting link opened at {attendance.linkOpenedDisplay}. (Please confirm attendance below).</span>
+                            <span>Join time recorded at {attendance.linkOpenedDisplay}. (Please confirm attendance below).</span>
                           </div>
                         ) : (
                           <div className="text-xs text-slate-400 flex items-center gap-2 mt-1">
@@ -1130,7 +1130,7 @@ export default function DashboardPage() {
                 <div>
                   <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
                     <Clock className="w-5 h-5 text-indigo-600" />
-                    Submit Post-Class Log (Mandatory for Hourly Payout)
+                    Save Class Log (Added to Teacher Payment)
                   </h3>
                   <p className="text-xs text-slate-500 mt-1">
                     System calculates exact decimal duration hours. Cancelled or missed classes bill 0 hours as per academy policy.
@@ -1139,7 +1139,7 @@ export default function DashboardPage() {
 
                 <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-800 text-xs font-bold self-start sm:self-auto">
                   <Clock className="w-3.5 h-3.5 text-indigo-600" />
-                  <span>Calculated: {isClassPresent ? currentDuration : '0.0 hrs (Absent - ₹0 charged)'}</span>
+                  <span>Calculated: {isClassPresent ? currentDuration : '0.0 hrs (Absent - No charge)'}</span>
                 </div>
               </div>
 
@@ -1148,9 +1148,9 @@ export default function DashboardPage() {
                   <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
                     <Check className="w-6 h-6 stroke-[3]" />
                   </div>
-                  <h4 className="font-bold text-emerald-800 text-base">Class Log Recorded Successfully!</h4>
+                  <h4 className="font-bold text-emerald-800 text-base">Class Log Saved</h4>
                   <p className="text-xs text-emerald-700">
-                    Verified duration was added to your monthly payout and student's billing ledger.
+                    Class duration was added to your teacher payment and student's fee bill.
                   </p>
                   <button 
                     onClick={() => setClassLogged(false)} 
@@ -1225,7 +1225,7 @@ export default function DashboardPage() {
                       {attendanceRecords[selectedSessionId]?.linkOpenedDisplay && (
                         <span className="text-[11px] font-bold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded border border-blue-200 self-start sm:self-auto flex items-center gap-1">
                           <Clock className="w-3 h-3 text-blue-600" />
-                          <span>Student opened link at {attendanceRecords[selectedSessionId].linkOpenedDisplay}</span>
+                          <span>Student joined at {attendanceRecords[selectedSessionId].linkOpenedDisplay}</span>
                         </span>
                       )}
                     </div>
@@ -1266,7 +1266,7 @@ export default function DashboardPage() {
                         <div>
                           <span className="text-xs block font-bold">Student Absent / Cancelled</span>
                           <span className="text-[10px] text-red-700 font-medium block">
-                            Strict Zero-Fee: 0.0 hrs billed
+                            No charge: 0.0 hrs billed
                           </span>
                         </div>
                       </label>
@@ -1326,18 +1326,18 @@ export default function DashboardPage() {
                       className="px-6 py-2.5 rounded-xl font-bold text-sm bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-100 flex items-center gap-2 transition-all"
                     >
                       <CheckCircle2 className="w-4 h-4" />
-                      <span>{isSubmittingLog ? 'Saving Log...' : `Save & Verify Class Log (${isClassPresent && logDurationInfo.isValid ? `${logDurationInfo.hours} hrs` : '0.0 hrs'})`}</span>
+                      <span>{isSubmittingLog ? 'Saving...' : `Save Class Log (${isClassPresent && logDurationInfo.isValid ? `${logDurationInfo.hours} hrs` : '0.0 hrs'})`}</span>
                     </button>
                   </div>
                 </form>
               )}
             </div>
 
-            {/* Teacher's Recent Verified Logs Table */}
+            {/* Teacher's Class Logs Table */}
             <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
               <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2">
                 <Layers className="w-4 h-4 text-indigo-600" />
-                Your Verified Class Logs History
+                Your Class Logs History
               </h3>
 
               <div className="overflow-x-auto">
@@ -1348,7 +1348,7 @@ export default function DashboardPage() {
                       <th className="py-2.5">Student</th>
                       <th className="py-2.5">Subject & Topics</th>
                       <th className="py-2.5">Hours</th>
-                      <th className="py-2.5">Payout Status</th>
+                      <th className="py-2.5">Payment Status</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -1385,10 +1385,10 @@ export default function DashboardPage() {
             <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-                  Admin Master Console
+                  Admin Dashboard
                 </h2>
                 <p className="text-sm text-slate-500 mt-1">
-                  Managing {adminDirectory.studentsCount || 0} Students &amp; {adminDirectory.teachersCount || 0} Tutors &bull; Real-time Render PostgreSQL
+                  Managing {adminDirectory.studentsCount || 0} Students &amp; {adminDirectory.teachersCount || 0} Teachers &bull; Live Database
                 </p>
               </div>
               <div className="flex items-center gap-2 self-start sm:self-auto">
@@ -1405,39 +1405,39 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Live Metrics from Render PostgreSQL */}
+            {/* Live Metrics */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
                 <span className="text-xs text-slate-500">Active Students</span>
                 <div className="text-3xl font-extrabold text-slate-900 mt-1">
                   {adminDirectory.studentsCount || 0}
                 </div>
-                <span className="text-[11px] text-emerald-600 mt-0.5 block">Live in PostgreSQL</span>
+                <span className="text-[11px] text-emerald-600 mt-0.5 block">Enrolled students</span>
               </div>
               <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
                 <span className="text-xs text-slate-500">Active Teachers</span>
                 <div className="text-3xl font-extrabold text-slate-900 mt-1">
                   {adminDirectory.teachersCount || 0}
                 </div>
-                <span className="text-[11px] text-slate-400 mt-0.5 block">1-on-1 dedicated</span>
+                <span className="text-[11px] text-slate-400 mt-0.5 block">Dedicated teachers</span>
               </div>
               <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
                 <span className="text-xs text-slate-500">Attended Hours</span>
                 <div className="text-3xl font-extrabold text-slate-900 mt-1">
                   {((adminDirectory.students || []).reduce((acc, s) => acc + (s.attendedHours || 0), 0)).toFixed(1)} hrs
                 </div>
-                <span className="text-[11px] text-indigo-600 mt-0.5 block">Verified lecture logs</span>
+                <span className="text-[11px] text-indigo-600 mt-0.5 block">Recorded class hours</span>
               </div>
               <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
                 <span className="text-xs text-slate-500">Total Accrued Fees</span>
                 <div className="text-3xl font-extrabold text-emerald-600 mt-1">
                   ₹{((adminDirectory.students || []).reduce((acc, s) => acc + (s.totalFeeDue || 0), 0)).toLocaleString('en-IN')}
                 </div>
-                <span className="text-[11px] text-emerald-600 mt-0.5 block">Verified billing due</span>
+                <span className="text-[11px] text-emerald-600 mt-0.5 block">Monthly fee accruals</span>
               </div>
             </div>
 
-            {/* 🔐 TUTOR & STAFF INVITATION MANAGER WIDGET */}
+            {/* INVITATION MANAGER WIDGET */}
             <div className="p-6 sm:p-7 rounded-2xl bg-white border border-indigo-100 shadow-md shadow-indigo-50/50 relative overflow-hidden">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5 pb-4 border-b border-slate-100">
                 <div>
@@ -1446,11 +1446,11 @@ export default function DashboardPage() {
                       <KeyRound className="w-4 h-4" />
                     </div>
                     <h3 className="text-base font-bold text-slate-900">
-                      Tutor & Staff Invitation Manager (Controlled Onboarding)
+                      Teacher & Admin Invitation Manager
                     </h3>
                   </div>
                   <p className="text-xs text-slate-500 mt-1">
-                    Student enrollment is 100% public. Tutors & staff require an authorized invitation code issued below.
+                    Students can register directly. Teachers and administrators require an invitation code.
                   </p>
                 </div>
                 <span className="text-xs font-bold px-3 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full self-start sm:self-auto">
@@ -1467,8 +1467,8 @@ export default function DashboardPage() {
                     onChange={(e) => setInviteTargetRole(e.target.value)}
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold bg-white"
                   >
-                    <option value="TEACHER">Tutor / Teacher</option>
-                    <option value="ADMIN">Administrative Staff</option>
+                    <option value="TEACHER">Teacher</option>
+                    <option value="ADMIN">Admin</option>
                   </select>
                 </div>
 
@@ -1524,16 +1524,16 @@ export default function DashboardPage() {
                     TUTOR-2026-INVITE (Teachers)
                   </span>
                   <span className="font-mono font-bold text-[11px] text-slate-700 bg-slate-100 px-2 py-0.5 rounded border">
-                    ADMIN-SUPER-2026 (Staff)
+                    ADMIN-SUPER-2026 (Admin)
                   </span>
                 </div>
                 <span className="text-[11px] text-indigo-600 font-semibold">
-                  ⚡ Auto-fills role and secret key when opened
+                  ⚡ Auto-fills role and invitation code when opened
                 </span>
               </div>
             </div>
 
-            {/* 👥 4. ACADEMY DIRECTORY (STUDENTS & TEACHERS ROSTER) */}
+            {/* ACADEMY DIRECTORY (STUDENTS & TEACHERS ROSTER) */}
             <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5 pb-4 border-b border-slate-100">
                 <div>
@@ -1542,11 +1542,11 @@ export default function DashboardPage() {
                       <Users className="w-4 h-4" />
                     </div>
                     <h3 className="text-base font-bold text-slate-900">
-                      Academy Directory & User Management
+                      Academy Directory
                     </h3>
                   </div>
                   <p className="text-xs text-slate-500 mt-1">
-                    Live roster of registered students and onboarded tutors with contact details, parent info, and lecture metrics.
+                    Directory of registered students and teachers with contact details, parent info, and class metrics.
                   </p>
                 </div>
 
@@ -1574,7 +1574,7 @@ export default function DashboardPage() {
                         : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
-                    <span>Onboarded Tutors</span>
+                    <span>Teachers</span>
                     <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-purple-50 text-purple-700 font-extrabold">
                       {adminDirectory.teachers?.length || 0}
                     </span>
@@ -1593,7 +1593,7 @@ export default function DashboardPage() {
                     placeholder={
                       adminDirectoryTab === 'STUDENTS'
                         ? "Search by student, parent, school, phone..."
-                        : "Search by tutor name, subject, phone..."
+                        : "Search by teacher name, subject, phone..."
                     }
                     className="w-full pl-8 pr-3 py-2 rounded-xl border border-slate-200 text-xs bg-slate-50 focus:bg-white focus:border-indigo-500 transition-colors"
                   />
@@ -1669,7 +1669,7 @@ export default function DashboardPage() {
                             </td>
                             <td className="py-3 text-xs">
                               <span className="font-semibold text-slate-800 block">{student.grade}</span>
-                              <span className="text-[11px] text-indigo-600 font-bold block">₹{student.hourlyRate}/hr</span>
+                              <span className="text-[11px] text-indigo-600 font-bold block">₹{student.hourlyRate} per hour</span>
                             </td>
                             <td className="py-3 text-xs">
                               <div className="space-y-0.5">
@@ -1704,7 +1704,7 @@ export default function DashboardPage() {
                                 {student.attendedHours} hrs
                               </span>
                               <span className="text-[10px] text-slate-400 block mt-0.5">
-                                {student.completedSessions} lectures attended
+                                {student.completedSessions} classes attended
                               </span>
                             </td>
                             <td className="py-3 text-xs">
@@ -1716,7 +1716,7 @@ export default function DashboardPage() {
                                   ? 'bg-amber-50 text-amber-700 border border-amber-200'
                                   : 'bg-slate-100 text-slate-600'
                               }`}>
-                                {student.totalFeeDue > 0 ? 'Payment Due' : 'Zero Balance'}
+                                {student.totalFeeDue > 0 ? 'Payment due' : 'No amount due'}
                               </span>
                             </td>
                             <td className="py-3 text-xs text-right pr-2">
@@ -1741,16 +1741,16 @@ export default function DashboardPage() {
                 <div className="overflow-x-auto">
                   {filteredDirectoryTeachers.length === 0 ? (
                     <div className="text-center py-10 bg-slate-50/50 rounded-xl border border-dashed border-slate-200 text-slate-400 text-xs">
-                      No matching tutors found in directory.
+                      No matching teachers found in directory.
                     </div>
                   ) : (
                     <table className="w-full text-left text-sm">
                       <thead>
                         <tr className="border-b border-slate-200 text-[11px] uppercase tracking-wider text-slate-400">
-                          <th className="py-2.5">Tutor & Department</th>
+                          <th className="py-2.5">Teacher & Department</th>
                           <th className="py-2.5">Contact Details</th>
-                          <th className="py-2.5">Lectures Delivered</th>
-                          <th className="py-2.5">Accrued Payout</th>
+                          <th className="py-2.5">Classes Delivered</th>
+                          <th className="py-2.5">Teacher Payment</th>
                           <th className="py-2.5 text-right pr-2">Action</th>
                         </tr>
                       </thead>
@@ -1795,13 +1795,13 @@ export default function DashboardPage() {
                                 ₹{teacher.accruedPayout.toLocaleString('en-IN')}
                               </div>
                               <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                Accrued & Verified
+                                Payment Recorded
                               </span>
                             </td>
                             <td className="py-3 text-xs text-right pr-2">
                               <button
                                 onClick={() => handleDeleteDirectoryUser(teacher.id, teacher.name)}
-                                title="Remove tutor from directory"
+                                title="Remove teacher from directory"
                                 className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
@@ -1822,10 +1822,10 @@ export default function DashboardPage() {
                 <div>
                   <div className="flex items-center gap-2">
                     <Calculator className="w-5 h-5 text-indigo-400" />
-                    <h3 className="text-lg font-bold text-white">Academy Revenue & Margin Simulator</h3>
+                    <h3 className="text-lg font-bold text-white">Academy Revenue & Share Simulator</h3>
                   </div>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    Confidential executive tool to project monthly revenues, teacher payouts, and net gross profits.
+                    Tool to project monthly revenues, teacher payments, and academy share.
                   </p>
                 </div>
                 <span className="text-xs font-bold px-3 py-1 bg-white/10 text-indigo-200 rounded-full border border-white/10 self-start sm:self-auto">
@@ -1890,13 +1890,13 @@ export default function DashboardPage() {
                       </strong>
                     </div>
                     <div className="p-3 rounded-xl bg-white/5 border border-white/10">
-                      <span className="text-slate-400 text-[10px] uppercase font-bold block">Teacher Payroll</span>
+                      <span className="text-slate-400 text-[10px] uppercase font-bold block">Teacher Payments</span>
                       <strong className="text-base text-rose-300 font-extrabold mt-0.5 block">
                         ₹{simTotalPay.toLocaleString('en-IN')}
                       </strong>
                     </div>
                     <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
-                      <span className="text-emerald-300 text-[10px] uppercase font-bold block">Institute Cut</span>
+                      <span className="text-emerald-300 text-[10px] uppercase font-bold block">Academy Share</span>
                       <strong className="text-base text-emerald-400 font-extrabold mt-0.5 block">
                         {simMarginPct}% Margin
                       </strong>
@@ -1907,28 +1907,28 @@ export default function DashboardPage() {
                 {/* Net Profit Big Badge */}
                 <div className="p-5 rounded-2xl bg-white/10 border border-white/15 flex flex-col items-center justify-center text-center">
                   <span className="text-[10px] font-extrabold tracking-wider text-emerald-300 uppercase block">
-                    Net Projected Margin
+                    Academy Share
                   </span>
                   <div className="text-3xl font-black text-emerald-400 mt-1">
                     +₹{simNetProfit.toLocaleString('en-IN')}
                   </div>
                   <span className="text-[11px] text-slate-300 mt-1 block">
-                    Monthly margin after paying all teacher hourly fees
+                    Monthly academy share after teacher payments
                   </span>
                 </div>
 
               </div>
             </div>
 
-            {/* Academy Class Logs & Verified Hours Audit with Search & Filters */}
+            {/* Academy Class Logs Audit with Search & Filters */}
             <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                 <div>
                   <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
                     <FileText className="w-4 h-4 text-indigo-600" />
-                    Academy Class Logs Audit (Master Ledger)
+                    Academy Class Logs Audit
                   </h3>
-                  <p className="text-xs text-slate-500">Teacher-submitted post-class hours directly determine student invoices and teacher payouts.</p>
+                  <p className="text-xs text-slate-500">Teacher class logs determine student fee bills and teacher payments.</p>
                 </div>
 
                 {/* Filter and Search */}
@@ -1965,8 +1965,8 @@ export default function DashboardPage() {
                       <th className="py-2.5">Student & Grade</th>
                       <th className="py-2.5">Subject & Topics</th>
                       <th className="py-2.5">Duration</th>
-                      <th className="py-2.5">Student Billable</th>
-                      <th className="py-2.5">Teacher Payout</th>
+                      <th className="py-2.5">Student Fee</th>
+                      <th className="py-2.5">Teacher Payment</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -2009,8 +2009,8 @@ export default function DashboardPage() {
             <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h3 className="text-base font-bold text-slate-900">Grade Rate Cards (Configurable Matrix)</h3>
-                  <p className="text-xs text-slate-500">Student billing and teacher payout rates vary strictly by grade.</p>
+                  <h3 className="text-base font-bold text-slate-900">Grade Fee Rates</h3>
+                  <p className="text-xs text-slate-500">Student fee rates and teacher rates vary by grade.</p>
                 </div>
                 <button 
                   onClick={() => setIsGradeModalOpen(true)}
@@ -2025,9 +2025,9 @@ export default function DashboardPage() {
                   <thead>
                     <tr className="border-b border-slate-200 text-xs uppercase tracking-wider text-slate-400">
                       <th className="py-2.5">Grade / Standard</th>
-                      <th className="py-2.5">Student Billing Rate</th>
-                      <th className="py-2.5">Teacher Payout Rate</th>
-                      <th className="py-2.5">Institute Margin</th>
+                      <th className="py-2.5">Student Fee Rate</th>
+                      <th className="py-2.5">Teacher Rate</th>
+                      <th className="py-2.5">Academy Share</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -2037,9 +2037,9 @@ export default function DashboardPage() {
                       return (
                         <tr key={g.id}>
                           <td className="py-3 font-semibold text-slate-800">{g.name}</td>
-                          <td className="py-3 text-indigo-600 font-bold">₹{g.studentHourlyRate} / hr</td>
-                          <td className="py-3 text-slate-500">₹{g.teacherHourlyRate} / hr</td>
-                          <td className="py-3 text-emerald-600 font-semibold">+₹{margin} / hr ({marginPercent}%)</td>
+                          <td className="py-3 text-indigo-600 font-bold">₹{g.studentHourlyRate} per hour</td>
+                          <td className="py-3 text-slate-500">₹{g.teacherHourlyRate} per hour</td>
+                          <td className="py-3 text-emerald-600 font-semibold">+₹{margin} per hour ({marginPercent}%)</td>
                         </tr>
                       );
                     })}
@@ -2121,7 +2121,7 @@ export default function DashboardPage() {
                 <div className="p-4 rounded-2xl bg-emerald-50/50 border border-emerald-100 space-y-3">
                   <div className="text-[11px] font-bold text-emerald-900 uppercase tracking-wider flex items-center justify-between">
                     <span>Academic & Parent Details</span>
-                    <span className="text-xs font-black text-emerald-700">Rate: ₹{user.hourlyRate || 400}/hr</span>
+                    <span className="text-xs font-black text-emerald-700">Fee rate: ₹{user.hourlyRate || 400} per hour</span>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -2175,8 +2175,8 @@ export default function DashboardPage() {
               {role === 'TEACHER' && (
                 <div className="p-4 rounded-2xl bg-blue-50/50 border border-blue-100 space-y-3">
                   <div className="text-[11px] font-bold text-blue-900 uppercase tracking-wider flex items-center justify-between">
-                    <span>Tutor Credentials & Payout Account</span>
-                    <span className="text-xs font-black text-blue-700">Compensation: ₹{user.hourlyRate || 250}/hr</span>
+                    <span>Teacher Details & Payment Account</span>
+                    <span className="text-xs font-black text-blue-700">Teacher rate: ₹{user.hourlyRate || 250} per hour</span>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -2202,7 +2202,7 @@ export default function DashboardPage() {
                   </div>
 
                   <div>
-                    <label className="font-bold text-slate-700 block mb-1">Registered Bank / UPI for Payouts</label>
+                    <label className="font-bold text-slate-700 block mb-1">Bank or UPI for Payments</label>
                     <input
                       type="text"
                       value={profileBankAccount}
@@ -2218,10 +2218,10 @@ export default function DashboardPage() {
               {role === 'ADMIN' && (
                 <div className="p-4 rounded-2xl bg-purple-50/50 border border-purple-100 space-y-3">
                   <div className="text-[11px] font-bold text-purple-900 uppercase tracking-wider">
-                    Administrative Designation & Organization
+                    Admin Role & Organization
                   </div>
                   <div>
-                    <label className="font-bold text-slate-700 block mb-1">Staff Designation</label>
+                    <label className="font-bold text-slate-700 block mb-1">Administrative Role</label>
                     <input
                       type="text"
                       value={profileDesignation}
@@ -2236,7 +2236,7 @@ export default function DashboardPage() {
                       <span>Under Active Administration</span>
                     </div>
                     <div className="p-2.5 rounded-xl bg-white border border-slate-200">
-                      <span className="block font-bold text-slate-800">14 Dedicated Tutors</span>
+                      <span className="block font-bold text-slate-800">14 Dedicated Teachers</span>
                       <span>Assigned to 1-on-1 Classes</span>
                     </div>
                   </div>
@@ -2278,7 +2278,7 @@ export default function DashboardPage() {
                 </div>
                 <div>
                   <h3 className="font-extrabold text-slate-900 text-base">TuitionHub Coaching Academy</h3>
-                  <span className="text-[10px] text-indigo-700 font-mono font-semibold">Official Fee Statement & Proforma Invoice &bull; #INV-2026-8921</span>
+                  <span className="text-[10px] text-indigo-700 font-mono font-semibold">Monthly Fee Bill &bull; #INV-2026-8921</span>
                 </div>
               </div>
               <button onClick={() => setIsReceiptModalOpen(false)} className="text-slate-400 hover:text-slate-600">
@@ -2297,7 +2297,7 @@ export default function DashboardPage() {
                   <span className="text-slate-400 text-[10px] uppercase font-bold block">Billing Period</span>
                   <span className="font-bold text-slate-900 block mt-0.5">November 2026</span>
                   <span className="text-amber-800 font-bold bg-amber-50 px-2 py-0.5 rounded border border-amber-200 text-[10px] inline-block mt-1">
-                    Status: PAYMENT DUE (DIRECT SETTLEMENT)
+                    Status: Payment due
                   </span>
                 </div>
               </div>
@@ -2331,7 +2331,7 @@ export default function DashboardPage() {
                               {log.subject} ({log.topicsCovered ? (log.topicsCovered.length > 25 ? log.topicsCovered.slice(0, 25) + '...' : log.topicsCovered) : '1-on-1 Class'})
                             </td>
                             <td className="py-2.5 px-3">{durHours} hrs</td>
-                            <td className="py-2.5 px-3">₹{rate}/hr</td>
+                            <td className="py-2.5 px-3">₹{rate} per hour</td>
                             <td className="py-2.5 px-3 text-right font-bold">₹{lineAmount}</td>
                           </tr>
                         );
@@ -2341,7 +2341,7 @@ export default function DashboardPage() {
                   <tfoot className="bg-slate-50 font-bold border-t border-slate-200">
                     <tr>
                       <td colSpan="3" className="py-2 px-3 text-slate-700">
-                        Total Attended Verified Hours ({Number((monthlyHours ?? 0).toFixed(2))} hrs):
+                        Total Attended Hours ({Number((monthlyHours ?? 0).toFixed(2))} hrs):
                       </td>
                       <td className="py-2 px-3 text-right text-indigo-600 font-black text-sm">
                         ₹{Math.round(Number((monthlyHours ?? 0).toFixed(2)) * (user?.hourlyRate || 400)).toLocaleString('en-IN')}
@@ -2352,9 +2352,9 @@ export default function DashboardPage() {
               </div>
 
               <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-600 font-medium flex items-center justify-between text-[11px]">
-                <span>Settlement Mode: Direct UPI / Bank Transfer (+91 98000 00000)</span>
+                <span>Payment: Direct UPI / Bank Transfer (+91 98000 00000)</span>
                 <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
-                  Proforma Statement
+                  Monthly Fee Bill
                 </span>
               </div>
             </div>
@@ -2552,7 +2552,7 @@ export default function DashboardPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">Student Billing (₹/hr)</label>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">Student Fee Rate (₹ per hour)</label>
                   <input 
                     type="number" 
                     required 
@@ -2563,7 +2563,7 @@ export default function DashboardPage() {
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">Teacher Payout (₹/hr)</label>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">Teacher Rate (₹ per hour)</label>
                   <input 
                     type="number" 
                     required 
@@ -2587,7 +2587,7 @@ export default function DashboardPage() {
                   type="submit" 
                   className="px-5 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-100"
                 >
-                  Save Rate Card
+                  Save Rate
                 </button>
               </div>
             </form>
@@ -2598,8 +2598,8 @@ export default function DashboardPage() {
       {/* Footer */}
       <footer className="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-400">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <span>TuitionHub Management &bull; Authenticated Session</span>
-          <span className="text-emerald-600 font-semibold">● Post-Class Logging & Smart Attendance Active</span>
+          <span>TuitionHub Academy &bull; Private Portal</span>
+          <span className="text-emerald-600 font-semibold">● Class Logging & Attendance Active</span>
         </div>
       </footer>
 

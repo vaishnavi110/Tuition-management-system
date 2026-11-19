@@ -77,9 +77,9 @@ export default function RegisterPage() {
     setValidationError('');
     setError(null);
 
-    // 🔒 Security check: If registering as Teacher or Admin, require an invitation code!
+    // Security check: If registering as Teacher or Admin, require an invitation code
     if (role !== 'STUDENT' && !inviteCode.trim()) {
-      setValidationError(`An Authorized Academy Invitation Code is mandatory to register as a ${role === 'TEACHER' ? 'Tutor' : 'Staff/Admin'}.`);
+      setValidationError(`An invitation code is required to register as a ${role === 'TEACHER' ? 'Teacher' : 'Admin'}.`);
       return;
     }
 
@@ -171,12 +171,12 @@ export default function RegisterPage() {
               <GraduationCap className="w-6 h-6" />
             </div>
             <h2 className="text-2xl font-black text-slate-900 tracking-tight">
-              {role === 'STUDENT' ? 'Student Enrollment' : 'Authorized Staff Onboarding'}
+              {role === 'STUDENT' ? 'Student Registration' : 'Teacher & Admin Registration'}
             </h2>
             <p className="text-xs text-slate-500 mt-1">
               {role === 'STUDENT' 
-                ? 'Public 1-on-1 tuition enrollment for academy students & parents' 
-                : 'Teacher & Admin accounts require an authorized invitation code'}
+                ? 'Tuition enrollment for students & parents' 
+                : 'Teacher & Admin accounts require an invitation code'}
             </p>
           </div>
 
@@ -193,7 +193,7 @@ export default function RegisterPage() {
                 }`}
               >
                 <Video className="w-4 h-4" />
-                <span>Student / Parent (Public)</span>
+                <span>Student / Parent</span>
               </button>
 
               <button
@@ -206,14 +206,14 @@ export default function RegisterPage() {
                 }`}
               >
                 <KeyRound className="w-4 h-4" />
-                <span>Tutor / Staff (Invite Only)</span>
+                <span>Teacher / Admin (Invite Only)</span>
               </button>
             </div>
 
-            {/* Sub-toggle for Tutor vs Admin if Invite Only is selected */}
+            {/* Sub-toggle for Teacher vs Admin if Invite Only is selected */}
             {role !== 'STUDENT' && (
               <div className="flex items-center justify-center gap-3 mt-3 pt-2 border-t border-slate-100">
-                <span className="text-xs font-bold text-slate-600">Onboarding Role:</span>
+                <span className="text-xs font-bold text-slate-600">Role:</span>
                 <button
                   type="button"
                   onClick={() => setRole('TEACHER')}
@@ -223,7 +223,7 @@ export default function RegisterPage() {
                       : 'border-slate-200 text-slate-500 hover:bg-slate-50'
                   }`}
                 >
-                  Tutor / Teacher
+                  Teacher
                 </button>
                 <button
                   type="button"
@@ -234,7 +234,7 @@ export default function RegisterPage() {
                       : 'border-slate-200 text-slate-500 hover:bg-slate-50'
                   }`}
                 >
-                  Operations / Admin
+                  Admin
                 </button>
               </div>
             )}
@@ -251,13 +251,13 @@ export default function RegisterPage() {
           {/* Registration Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
             
-            {/* 🔒 INVITATION CODE INPUT (Mandatory for Teacher and Admin) */}
+            {/* INVITATION CODE INPUT (Mandatory for Teacher and Admin) */}
             {role !== 'STUDENT' && (
               <div className="p-4 rounded-2xl bg-indigo-50/70 border border-indigo-200 space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-bold text-indigo-900 uppercase tracking-wider flex items-center gap-1.5">
                     <KeyRound className="w-3.5 h-3.5 text-indigo-600" />
-                    <span>Authorized Invitation Code (Required)</span>
+                    <span>Invitation Code (Required)</span>
                   </label>
                   <span className="text-[10px] font-bold text-indigo-600 bg-white px-2 py-0.5 rounded-full border border-indigo-200">
                     Invite-Only Access
@@ -274,13 +274,13 @@ export default function RegisterPage() {
                 />
 
                 <div className="flex items-center justify-between text-[11px] text-indigo-700">
-                  <span>Enter the secret invitation key issued by the Academy Director.</span>
+                  <span>Enter the invitation code issued by the academy.</span>
                   <button
                     type="button"
                     onClick={() => setInviteCode(role === 'TEACHER' ? 'TUTOR-2026-INVITE' : 'ADMIN-SUPER-2026')}
                     className="text-xs font-bold underline text-indigo-800 hover:text-indigo-950"
                   >
-                    Auto-Fill Demo Key
+                    Fill Demo Code
                   </button>
                 </div>
               </div>
@@ -341,7 +341,7 @@ export default function RegisterPage() {
                 <div className="text-xs font-bold text-emerald-900 uppercase tracking-wider flex items-center justify-between">
                   <span className="flex items-center gap-1.5">
                     <BookOpen className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Student Academic Information (Public Enrollment)</span>
+                    <span>Student Academic Details</span>
                   </span>
                   <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
                     No Invite Code Needed
@@ -356,11 +356,11 @@ export default function RegisterPage() {
                       onChange={(e) => setGrade(e.target.value)}
                       className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold bg-white"
                     >
-                      <option value="Grade 8">Grade 8 (₹350/hr)</option>
-                      <option value="Grade 9">Grade 9 (₹350/hr)</option>
-                      <option value="Grade 10 (Board)">Grade 10 Board Exam (₹400/hr)</option>
-                      <option value="Grade 11 (Science)">Grade 11 Science/JEE/NEET (₹600/hr)</option>
-                      <option value="Grade 12 (Board)">Grade 12 Board/Entrance (₹600/hr)</option>
+                      <option value="Grade 8">Grade 8 (₹350 per hour)</option>
+                      <option value="Grade 9">Grade 9 (₹350 per hour)</option>
+                      <option value="Grade 10 (Board)">Grade 10 Board Exam (₹400 per hour)</option>
+                      <option value="Grade 11 (Science)">Grade 11 Science/JEE/NEET (₹600 per hour)</option>
+                      <option value="Grade 12 (Board)">Grade 12 Board/Entrance (₹600 per hour)</option>
                     </select>
                   </div>
 
@@ -401,12 +401,12 @@ export default function RegisterPage() {
               </div>
             )}
 
-            {/* Authorized Teacher Information */}
+            {/* Teacher Information */}
             {role === 'TEACHER' && (
               <div className="p-4 rounded-2xl bg-blue-50/50 border border-blue-100 space-y-3">
                 <div className="text-xs font-bold text-blue-900 uppercase tracking-wider flex items-center gap-1.5">
                   <Award className="w-3.5 h-3.5 text-blue-600" />
-                  <span>Tutor Subject & Experience</span>
+                  <span>Teacher Subject & Qualifications</span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -438,20 +438,20 @@ export default function RegisterPage() {
                   </div>
                 </div>
                 <span className="text-[11px] text-blue-700 font-semibold block">
-                  ● Verified compensation rate: ₹250/hr for conducted 1-on-1 sessions.
+                  ● Teacher rate: ₹250 per hour for conducted classes.
                 </span>
               </div>
             )}
 
-            {/* Authorized Admin Information */}
+            {/* Admin Information */}
             {role === 'ADMIN' && (
               <div className="p-4 rounded-2xl bg-purple-50/50 border border-purple-100 space-y-3">
                 <div className="text-xs font-bold text-purple-900 uppercase tracking-wider flex items-center gap-1.5">
                   <ShieldCheck className="w-3.5 h-3.5 text-purple-600" />
-                  <span>Staff Designation</span>
+                  <span>Admin Role</span>
                 </div>
                 <div>
-                  <label className="text-[11px] font-bold text-slate-700 block mb-1">Administrative Designation</label>
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1">Administrative Role</label>
                   <input
                     type="text"
                     required
@@ -508,10 +508,10 @@ export default function RegisterPage() {
             >
               <span>
                 {isSubmitting 
-                  ? 'Verifying & Registering...' 
+                  ? 'Registering...' 
                   : role === 'STUDENT'
-                    ? 'Complete Student Enrollment'
-                    : `Register as Authorized ${role === 'TEACHER' ? 'Tutor' : 'Staff'}`}
+                    ? 'Register Student'
+                    : `Register as ${role === 'TEACHER' ? 'Teacher' : 'Admin'}`}
               </span>
               <ArrowRight className="w-4 h-4" />
             </button>
@@ -521,7 +521,7 @@ export default function RegisterPage() {
           <div className="mt-6 pt-5 border-t border-slate-100 text-center">
             <span className="text-xs text-slate-500">Already registered with the academy? </span>
             <Link to="/login" className="text-xs font-bold text-indigo-600 hover:underline">
-              Sign In Here
+              Sign In
             </Link>
           </div>
 
@@ -530,7 +530,7 @@ export default function RegisterPage() {
 
       {/* Footer */}
       <footer className="text-center text-xs text-slate-400 mt-8">
-        TuitionHub Academy Management &bull; Private & Secure Portal
+        TuitionHub Academy &bull; Private Portal
       </footer>
 
     </div>
