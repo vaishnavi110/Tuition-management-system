@@ -228,6 +228,83 @@ async function runTestSuite() {
     assert(regTeacherWithCode.status === 201, 'Teacher registration with valid invite code succeeds (HTTP 201)');
 
     // -------------------------------------------------------------------------
+    // TEST 7: Strict Email & 10-Digit Mobile Number Validation Boundaries
+    // -------------------------------------------------------------------------
+    console.log('\n--- 7. Strict Email (Gmail/RFC) & Mobile Validation Tests ---');
+    // Test 7a: Invalid email without domain
+    const badEmailRes = await request('POST', '/auth/register', {
+      name: 'Bad Email User',
+      emailOrPhone: 'invalidemailformat',
+      password: 'password123',
+      role: 'STUDENT'
+    });
+    assert(badEmailRes.status === 400, 'Registration rejects invalid email format with HTTP 400');
+
+    // Test 7b: Invalid mobile number (less than 10 digits or non-numeric)
+    const badPhoneRes = await request('POST', '/auth/register', {
+      name: 'Bad Phone User',
+      emailOrPhone: 'user.test@gmail.com',
+      phone: '12345', // Invalid: only 5 digits
+      password: 'password123',
+      role: 'STUDENT'
+    });
+    assert(badPhoneRes.status === 400, 'Registration rejects invalid mobile number (12345) with HTTP 400');
+
+    // Test 7c: Invalid parent phone number (starting with 1)
+    const badParentPhoneRes = await request('POST', '/auth/register', {
+      name: 'Bad Parent Phone User',
+      emailOrPhone: 'user.test2@gmail.com',
+      phone: '9876543210',
+      parentPhone: '1111111111', // Invalid: starts with 1
+      password: 'password123',
+      role: 'STUDENT'
+    });
+    assert(badParentPhoneRes.status === 400, 'Registration rejects invalid parent phone (1111111111) with HTTP 400');
+
+    // -------------------------------------------------------------------------
+    // TEST 8: Full New Student Profile Info Persistence & Retrieval
+    // -------------------------------------------------------------------------
+    console.log('\n--- 8. New Student Profile Info Persistence & Retrieval ---');
+    const newStudentEmail = `riddhima.joshi.${Date.now()}@gmail.com`;
+    const newStudentReg = await request('POST', '/auth/register', {
+      name: 'Riddhima Joshi',
+      emailOrPhone: newStudentEmail,
+      phone: '+91 98220 01122',
+      password: 'password123',
+      role: 'STUDENT',
+      grade: 'Grade 10 (Board)',
+      parentName: 'Dr. Mahesh Joshi',
+      parentPhone: '9822003344',
+      schoolName: 'St. Joseph High School'
+    });
+
+    assert(newStudentReg.status === 201, 'New student with full profile registered successfully (HTTP 201)');
+    const regUser = newStudentReg.data.user;
+    assert(regUser.name === 'Riddhima Joshi', 'Registered student name is Riddhima Joshi');
+    assert(regUser.parentName === 'Dr. Mahesh Joshi', `Registered parent name matches input: Dr. Mahesh Joshi (got: ${regUser.parentName})`);
+    assert(regUser.parentPhone === '9822003344', `Registered parent phone matches input: 9822003344 (got: ${regUser.parentPhone})`);
+    assert(regUser.schoolName === 'St. Joseph High School', `Registered school name matches input: St. Joseph High School (got: ${regUser.schoolName})`);
+
+    // Verify /api/auth/me fetches proper profile info from Render PostgreSQL
+    const riddhimaToken = newStudentReg.data.token;
+    const meRes = await request('GET', '/auth/me', null, riddhimaToken);
+    assert(meRes.status === 200, '/api/auth/me fetches profile info successfully');
+    const meUser = meRes.data.user;
+    assert(meUser.name === 'Riddhima Joshi', 'me query returns correct student name');
+    assert(meUser.parentName === 'Dr. Mahesh Joshi', 'me query returns correct parent name (not hardcoded demo!)');
+    assert(meUser.schoolName === 'St. Joseph High School', 'me query returns correct school name (not hardcoded demo!)');
+    assert(meUser.parentPhone === '9822003344', 'me query returns correct parent phone');
+
+    // Test profile update
+    const updateRes = await request('PUT', '/auth/profile', {
+      schoolName: 'St. Joseph International Academy Pune',
+      parentPhone: '9822009988'
+    }, riddhimaToken);
+    assert(updateRes.status === 200, 'Student profile update succeeds (HTTP 200)');
+    assert(updateRes.data.user.schoolName === 'St. Joseph International Academy Pune', 'Updated school name persisted in Render PostgreSQL');
+    assert(updateRes.data.user.parentPhone === '9822009988', 'Updated parent phone persisted in Render PostgreSQL');
+
+    // -------------------------------------------------------------------------
     // SUMMARY
     // -------------------------------------------------------------------------
     console.log('\n===============================================================');

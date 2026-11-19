@@ -7,6 +7,20 @@ const prisma = require('../prisma');
 const VALID_TEACHER_INVITES = ['TUTOR-2026-INVITE', 'ACADEMY-TUTOR-2026', 'TUTOR-DEMO'];
 const VALID_ADMIN_INVITES = ['ADMIN-SUPER-2026', 'DIRECTOR-2026', 'ADMIN-DEMO'];
 
+// Strict Email Validation (Standard RFC 5322 compliant)
+const isValidEmail = (email) => {
+  if (!email || typeof email !== 'string') return false;
+  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  return emailRegex.test(email.trim());
+};
+
+// Strict Mobile Number Validation (10 digits starting with 6-9, optional +91 or 0 prefix)
+const isValidPhoneNumber = (phone) => {
+  if (!phone || typeof phone !== 'string') return false;
+  const cleaned = phone.replace(/[\s\-()]/g, '');
+  return /^(\+91|0)?[6-9]\d{9}$/.test(cleaned);
+};
+
 // Seed demo users for local fallback
 const DEMO_USERS = [
   {
@@ -45,8 +59,8 @@ const DEMO_USERS = [
   }
 ];
 
-// Helper to format user for client responses
-const formatUserResponse = (user, profile = {}) => {
+// Helper to format user for client responses (dynamically extracts profile metadata)
+const formatUserResponse = (user) => {
   return {
     id: user.id,
     name: user.name,
@@ -55,10 +69,10 @@ const formatUserResponse = (user, profile = {}) => {
     grade: user.student?.grade?.name || user.grade || (user.role === 'STUDENT' ? 'Grade 10 (Board)' : undefined),
     hourlyRate: user.student?.grade?.studentHourlyRate || (user.role === 'TEACHER' ? 250 : 400),
     subject: user.subject || (user.role === 'TEACHER' ? 'Mathematics' : undefined),
-    phone: user.teacher?.phone || user.student?.parentPhone || user.phone || '+91 98000 00000',
-    parentName: user.parentName || (user.role === 'STUDENT' ? 'Mr. Rajesh Sharma' : undefined),
-    parentPhone: user.student?.parentPhone || user.parentPhone || (user.role === 'STUDENT' ? '+91 91234 56789' : undefined),
-    schoolName: user.schoolName || (user.role === 'STUDENT' ? 'Delhi Public School' : undefined),
+    phone: user.student?.phone || user.teacher?.phone || user.phone || '',
+    parentName: user.student?.parentName || user.parentName || (user.role === 'STUDENT' ? '' : undefined),
+    parentPhone: user.student?.parentPhone || user.parentPhone || (user.role === 'STUDENT' ? '' : undefined),
+    schoolName: user.student?.schoolName || user.schoolName || (user.role === 'STUDENT' ? '' : undefined),
     qualification: user.teacher?.bio || user.qualification || (user.role === 'TEACHER' ? 'Senior Faculty' : undefined),
     designation: user.designation || (user.role === 'ADMIN' ? 'Managing Director & Operations' : undefined),
     bankAccount: user.bankAccount || (user.role === 'TEACHER' ? 'HDFC Bank •••• 4892' : undefined)
@@ -83,10 +97,50 @@ const register = async (req, res) => {
     designation
   } = req.body;
 
-  if (!name || !emailOrPhone || !password) {
-    return res.status(400).json({ error: 'Name, Email/Mobile, and Password are required.' });
+  // 1. Mandatory input checks
+  if (!name || !name.trim()) {
+    return res.status(400).json({ error: 'Full name is required.' });
   }
 
+  if (!emailOrPhone || !emailOrPhone.trim()) {
+    return res.status(400).json({ error: 'Email address or mobile number is required.' });
+  }
+
+  if (!password || password.length < 6) {
+    return res.status(400).json({ error: 'Password must be at least 6 characters long.' });
+  }
+
+  // 2. Strict Email / Phone validation
+  const cleanIdentifier = emailOrPhone.trim();
+  const isEmail = cleanIdentifier.includes('@');
+  if (isEmail) {
+    if (!isValidEmail(cleanIdentifier)) {
+      return res.status(400).json({ 
+        error: 'Please enter a valid email address (e.g. name@gmail.com).' 
+      });
+    }
+  } else {
+    if (!isValidPhoneNumber(cleanIdentifier)) {
+      return res.status(400).json({ 
+        error: 'Please enter a valid 10-digit mobile number starting with 6, 7, 8, or 9 (e.g. 9876543210).' 
+      });
+    }
+  }
+
+  // 3. Strict validation on contact numbers if provided
+  if (phone && phone.trim() && !isValidPhoneNumber(phone)) {
+    return res.status(400).json({ 
+      error: 'Invalid student contact number. Please enter a valid 10-digit mobile number.' 
+    });
+  }
+
+  if (parentPhone && parentPhone.trim() && !isValidPhoneNumber(parentPhone)) {
+    return res.status(400).json({ 
+      error: 'Invalid parent/guardian mobile number. Please enter a valid 10-digit mobile number.' 
+    });
+  }
+
+  // 4. Role-based onboarding security checks
   const normalizedRole = role.toUpperCase();
   if (normalizedRole === 'TEACHER') {
     if (!inviteCode || !VALID_TEACHER_INVITES.includes(inviteCode.trim().toUpperCase())) {
@@ -102,9 +156,10 @@ const register = async (req, res) => {
     }
   }
 
-  const cleanEmail = emailOrPhone.trim().toLowerCase();
+  const cleanEmail = cleanIdentifier.toLowerCase();
+  const effectivePhone = phone ? phone.trim() : (!isEmail ? cleanIdentifier : null);
 
-  // Try checking duplicate and creating user in Render PostgreSQL
+  // 5. Check duplicate & persist to Render PostgreSQL
   try {
     const existing = await prisma.user.findUnique({
       where: { emailOrPhone: cleanEmail }
@@ -125,13 +180,17 @@ const register = async (req, res) => {
       data: {
         name: name.trim(),
         emailOrPhone: cleanEmail,
+        phone: effectivePhone,
         role: normalizedRole,
         passwordHash,
         ...(normalizedRole === 'STUDENT' && defaultGrade ? {
           student: {
             create: {
               gradeId: defaultGrade.id,
-              parentPhone: parentPhone || phone || '+91 98000 00000',
+              phone: effectivePhone,
+              parentName: parentName ? parentName.trim() : null,
+              parentPhone: parentPhone ? parentPhone.trim() : null,
+              schoolName: schoolName ? schoolName.trim() : null,
               address: 'Registered Online'
             }
           }
@@ -139,7 +198,7 @@ const register = async (req, res) => {
         ...(normalizedRole === 'TEACHER' ? {
           teacher: {
             create: {
-              phone: phone || '+91 98000 00000',
+              phone: effectivePhone,
               bio: qualification || 'Senior Faculty',
               defaultMeetLink: 'https://meet.google.com/new'
             }
@@ -191,10 +250,10 @@ const register = async (req, res) => {
     role: normalizedRole,
     grade: grade || (normalizedRole === 'STUDENT' ? 'Grade 10 (Board)' : undefined),
     subject: subject || (normalizedRole === 'TEACHER' ? 'Mathematics' : undefined),
-    phone: phone || '+91 98000 00000',
-    parentName: parentName || (normalizedRole === 'STUDENT' ? 'Parent / Guardian' : undefined),
-    parentPhone: parentPhone || (normalizedRole === 'STUDENT' ? '+91 98000 00000' : undefined),
-    schoolName: schoolName || (normalizedRole === 'STUDENT' ? 'Delhi Public School' : undefined),
+    phone: effectivePhone || '',
+    parentName: parentName ? parentName.trim() : '',
+    parentPhone: parentPhone ? parentPhone.trim() : '',
+    schoolName: schoolName ? schoolName.trim() : '',
     qualification: qualification || (normalizedRole === 'TEACHER' ? 'Graduate Tutor' : undefined),
     designation: designation || (normalizedRole === 'ADMIN' ? 'Operations Manager' : undefined),
     hourlyRate: normalizedRole === 'TEACHER' ? 250 : 400,
@@ -224,7 +283,13 @@ const login = async (req, res) => {
     return res.status(400).json({ error: 'Email/Phone and password are required.' });
   }
 
-  const cleanEmail = emailOrPhone.trim().toLowerCase();
+  const cleanIdentifier = emailOrPhone.trim();
+  const isEmail = cleanIdentifier.includes('@');
+  if (isEmail && !isValidEmail(cleanIdentifier)) {
+    return res.status(400).json({ error: 'Please enter a valid email address (e.g. name@gmail.com).' });
+  }
+
+  const cleanEmail = cleanIdentifier.toLowerCase();
 
   // 1. Try finding in Render PostgreSQL
   try {
@@ -297,13 +362,13 @@ const login = async (req, res) => {
       grade: user.grade,
       hourlyRate: user.hourlyRate,
       subject: user.subject,
-      phone: user.phone,
-      parentName: user.parentName,
-      parentPhone: user.parentPhone,
+      phone: user.phone || '',
+      parentName: user.parentName || '',
+      parentPhone: user.parentPhone || '',
       qualification: user.qualification,
       designation: user.designation,
       bankAccount: user.bankAccount,
-      schoolName: user.schoolName
+      schoolName: user.schoolName || ''
     }
   });
 };
@@ -348,11 +413,41 @@ const updateProfile = async (req, res) => {
     designation
   } = req.body;
 
+  // Validate phone numbers if updated
+  if (phone && phone.trim() && !isValidPhoneNumber(phone)) {
+    return res.status(400).json({ error: 'Please enter a valid 10-digit mobile number.' });
+  }
+  if (parentPhone && parentPhone.trim() && !isValidPhoneNumber(parentPhone)) {
+    return res.status(400).json({ error: 'Please enter a valid 10-digit parent mobile number.' });
+  }
+
   try {
+    const isStudent = req.user.role === 'STUDENT';
+    const isTeacher = req.user.role === 'TEACHER';
+
     const updatedDb = await prisma.user.update({
       where: { id: req.user.id },
       data: {
-        ...(name && { name: name.trim() })
+        ...(name && { name: name.trim() }),
+        ...(phone && { phone: phone.trim() }),
+        ...(isStudent ? {
+          student: {
+            update: {
+              ...(parentName !== undefined && { parentName: parentName ? parentName.trim() : null }),
+              ...(parentPhone !== undefined && { parentPhone: parentPhone ? parentPhone.trim() : null }),
+              ...(schoolName !== undefined && { schoolName: schoolName ? schoolName.trim() : null }),
+              ...(phone !== undefined && { phone: phone ? phone.trim() : null })
+            }
+          }
+        } : {}),
+        ...(isTeacher ? {
+          teacher: {
+            update: {
+              ...(phone && { phone: phone.trim() }),
+              ...(qualification && { bio: qualification.trim() })
+            }
+          }
+        } : {})
       },
       include: {
         student: { include: { grade: true } },
@@ -407,6 +502,8 @@ const getDemoUsers = (req, res) => {
 };
 
 module.exports = {
+  isValidEmail,
+  isValidPhoneNumber,
   register,
   login,
   getMe,

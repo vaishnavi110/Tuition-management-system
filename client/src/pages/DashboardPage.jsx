@@ -789,13 +789,21 @@ export default function DashboardPage() {
                       </p>
                     </div>
 
-                    <button 
-                      onClick={() => setIsReceiptModalOpen(true)}
-                      className="w-full py-2.5 rounded-xl font-bold text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition-colors flex items-center justify-center gap-1.5"
-                    >
-                      <Printer className="w-3.5 h-3.5 text-indigo-600" />
-                      <span>View & Print Official Monthly Statement</span>
-                    </button>
+                    {/* Digital Receipts Notice (Hidden until Razorpay Integration in Milestone 2) */}
+                    <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                          <Info className="w-3.5 h-3.5 text-indigo-600" />
+                          <span>Official Payment Receipts</span>
+                        </span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
+                          Coming Soon in v1.0
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 leading-relaxed">
+                        Official stamped payment receipts & PDF downloads will be generated automatically upon online checkout completion via Razorpay Gateway (scheduled in next release).
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1872,8 +1880,8 @@ export default function DashboardPage() {
               <div className="grid grid-cols-2 gap-4 p-3 rounded-xl bg-slate-50">
                 <div>
                   <span className="text-slate-400 text-[10px] uppercase font-bold block">Billed To Student</span>
-                  <span className="font-bold text-slate-900 block mt-0.5">Aryan Sharma</span>
-                  <span className="text-slate-500">Grade 10 (Board Exam)</span>
+                  <span className="font-bold text-slate-900 block mt-0.5">{user?.name || 'Student'}</span>
+                  <span className="text-slate-500">{user?.grade || 'Grade 10'}</span>
                 </div>
                 <div>
                   <span className="text-slate-400 text-[10px] uppercase font-bold block">Billing Period</span>
