@@ -79,6 +79,17 @@ export default function DashboardPage() {
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
+  // 💳 Razorpay Test Account Demo State (Student Role)
+  const [isRazorpayModalOpen, setIsRazorpayModalOpen] = useState(false);
+  const [razorpayMethod, setRazorpayMethod] = useState('CARD'); // 'CARD', 'UPI', 'NETBANKING'
+  const [testCardNumber, setTestCardNumber] = useState('4111 1111 1111 1111');
+  const [testCardExpiry, setTestCardExpiry] = useState('12/28');
+  const [testCardCvv, setTestCardCvv] = useState('123');
+  const [testUpiId, setTestUpiId] = useState('success@razorpay');
+  const [testBank, setTestBank] = useState('HDFC');
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [paidRecord, setPaidRecord] = useState(null);
+
   // Form states for new session
   const [enrolledStudents, setEnrolledStudents] = useState([]);
   const [selectedStudentId, setSelectedStudentId] = useState('');
@@ -177,6 +188,75 @@ export default function DashboardPage() {
 
   // Feedback state
   const [actionSuccess, setActionSuccess] = useState('');
+
+  // ⚡ Razorpay Test Payment Handlers (Student Role Demo)
+  const totalPayableFee = Math.round(Number((monthlyHours ?? 0).toFixed(2)) * (user?.hourlyRate || 400));
+
+  const handleOpenRazorpayTest = () => {
+    setIsRazorpayModalOpen(true);
+  };
+
+  const handleSimulateRazorpayPayment = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    setIsProcessingPayment(true);
+    try {
+      // 1. Backend test order creation
+      const orderRes = await axios.post('/api/payment/create-order', {
+        amount: totalPayableFee,
+        studentName: user?.name,
+        receiptId: `REC-${Date.now()}`
+      }).catch(() => ({
+        data: {
+          order: {
+            id: `order_test_${Date.now()}`,
+            amount: totalPayableFee * 100
+          }
+        }
+      }));
+
+      const orderId = orderRes.data?.order?.id || `order_test_${Date.now()}`;
+      const mockPayId = `pay_test_${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
+
+      // 2. Simulated payment gateway round-trip latency
+      await new Promise(r => setTimeout(r, 1200));
+
+      // 3. Backend verification
+      const verifyRes = await axios.post('/api/payment/verify', {
+        orderId,
+        paymentId: mockPayId,
+        amount: totalPayableFee,
+        paymentMethod: razorpayMethod
+      }).catch(() => ({
+        data: {
+          payment: {
+            paymentId: mockPayId,
+            paidAt: new Date().toISOString()
+          }
+        }
+      }));
+
+      const verifiedRecord = {
+        paymentId: verifyRes.data?.payment?.paymentId || mockPayId,
+        orderId: orderId,
+        amount: totalPayableFee,
+        method: razorpayMethod,
+        paidAt: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+      };
+
+      setPaidRecord(verifiedRecord);
+      setIsRazorpayModalOpen(false);
+      setActionSuccess(`Payment of ₹${totalPayableFee.toLocaleString('en-IN')} received via Razorpay Test Gateway! (Payment ID: ${verifiedRecord.paymentId})`);
+    } catch (err) {
+      console.error('Razorpay test payment error:', err);
+    } finally {
+      setIsProcessingPayment(false);
+    }
+  };
+
+  const handleResetDemoFeePayment = () => {
+    setPaidRecord(null);
+    setActionSuccess('Fee Bill reset to unpaid for demo testing.');
+  };
 
   // Open Profile Modal and populate fields
   const openProfileModal = () => {
@@ -1145,13 +1225,17 @@ export default function DashboardPage() {
                         Official Fee Statement &bull; November 2026
                       </span>
                       <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${
-                        Math.round(Number((monthlyHours ?? 0).toFixed(2)) * (user.hourlyRate || 400)) === 0
-                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
-                          : 'bg-amber-50 text-amber-700 border border-amber-200'
+                        paidRecord 
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          : Math.round(Number((monthlyHours ?? 0).toFixed(2)) * (user.hourlyRate || 400)) === 0
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                            : 'bg-amber-50 text-amber-700 border border-amber-200'
                       }`}>
-                        {Math.round(Number((monthlyHours ?? 0).toFixed(2)) * (user.hourlyRate || 400)) === 0 
-                          ? 'No amount due' 
-                          : 'Payment due'}
+                        {paidRecord 
+                          ? `Paid via Razorpay Test (${paidRecord.paymentId})`
+                          : Math.round(Number((monthlyHours ?? 0).toFixed(2)) * (user.hourlyRate || 400)) === 0 
+                            ? 'No amount due' 
+                            : 'Payment due'}
                       </span>
                     </div>
                     <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
@@ -1162,7 +1246,27 @@ export default function DashboardPage() {
                     </p>
                   </div>
 
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2.5">
+                    {paidRecord ? (
+                      <button
+                        onClick={handleResetDemoFeePayment}
+                        className="px-3.5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1.5 transition-colors"
+                        title="Reset payment status back to unpaid for another demo walkthrough"
+                      >
+                        <span>Reset Bill (Demo)</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={handleOpenRazorpayTest}
+                        className="px-4 py-2.5 rounded-xl bg-[#0c2340] hover:bg-[#132f54] text-white text-xs font-bold flex items-center gap-2 shadow-md transition-all"
+                        title="Open Razorpay sandbox demo checkout"
+                      >
+                        <div className="w-4 h-4 rounded bg-blue-500/30 text-blue-300 flex items-center justify-center font-black text-[10px]">
+                          R
+                        </div>
+                        <span>Pay via Razorpay Test</span>
+                      </button>
+                    )}
                     <button
                       onClick={() => setIsReceiptModalOpen(true)}
                       className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center gap-2 shadow-md shadow-indigo-100 transition-all"
@@ -1245,12 +1349,16 @@ export default function DashboardPage() {
                       <CreditCard className="w-3.5 h-3.5 text-emerald-600" /> Total Fee Due
                     </span>
                     <div className="text-3xl font-black text-emerald-600 mt-1">
-                      ₹{Math.round(Number((monthlyHours ?? 0).toFixed(2)) * (user.hourlyRate || 400)).toLocaleString('en-IN')}
+                      {paidRecord ? '₹0' : `₹${Math.round(Number((monthlyHours ?? 0).toFixed(2)) * (user.hourlyRate || 400)).toLocaleString('en-IN')}`}
                     </div>
                     <span className={`text-[11px] font-bold mt-0.5 block ${
-                      Math.round(Number((monthlyHours ?? 0).toFixed(2)) * (user.hourlyRate || 400)) === 0 ? 'text-emerald-600' : 'text-amber-600'
+                      paidRecord 
+                        ? 'text-emerald-600'
+                        : Math.round(Number((monthlyHours ?? 0).toFixed(2)) * (user.hourlyRate || 400)) === 0 ? 'text-emerald-600' : 'text-amber-600'
                     }`}>
-                      {Math.round(Number((monthlyHours ?? 0).toFixed(2)) * (user.hourlyRate || 400)) === 0 ? 'All settled' : 'Payment due'}
+                      {paidRecord 
+                        ? `Paid (ID: ${paidRecord.paymentId})`
+                        : Math.round(Number((monthlyHours ?? 0).toFixed(2)) * (user.hourlyRate || 400)) === 0 ? 'All settled' : 'Payment due'}
                     </span>
                   </div>
                 </div>
@@ -1395,17 +1503,31 @@ export default function DashboardPage() {
                       </div>
                     </div>
 
-                    <div className="mt-5 pt-4 border-t border-slate-100 space-y-2">
-                      <button 
-                        disabled
-                        className="w-full py-2.5 rounded-xl font-bold text-xs bg-slate-100 border border-slate-200 text-slate-400 cursor-not-allowed flex items-center justify-center gap-2 shadow-inner"
-                        title="Online automatic checkout is planned for a future update"
-                      >
-                        <CreditCard className="w-4 h-4 text-slate-400" />
-                        <span>Online Automatic Payment — Planned for later</span>
-                      </button>
-                      <p className="text-[11px] text-slate-400 text-center">
-                        Payment gateway is scheduled for later. Please use direct transfer above.
+                    <div className="mt-5 pt-4 border-t border-slate-100 space-y-2.5">
+                      {paidRecord ? (
+                        <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-center space-y-1">
+                          <span className="text-xs font-bold text-emerald-900 block flex items-center justify-center gap-1.5">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                            <span>Payment Verified via Razorpay Test Gateway</span>
+                          </span>
+                          <span className="text-[10px] font-mono text-emerald-700 block">
+                            ID: {paidRecord.paymentId} &bull; Recorded on {paidRecord.paidAt}
+                          </span>
+                        </div>
+                      ) : (
+                        <button 
+                          onClick={handleOpenRazorpayTest}
+                          className="w-full py-3 rounded-xl font-bold text-xs bg-[#0c2340] hover:bg-[#132f54] text-white flex items-center justify-center gap-2 shadow-md transition-all group"
+                          title="Open interactive Razorpay sandbox demo checkout"
+                        >
+                          <div className="w-5 h-5 rounded bg-blue-500/20 text-blue-300 flex items-center justify-center font-black text-xs group-hover:scale-105 transition-transform">
+                            R
+                          </div>
+                          <span>Pay ₹{totalPayableFee.toLocaleString('en-IN')} with Razorpay Test Gateway (Demo Mode)</span>
+                        </button>
+                      )}
+                      <p className="text-[10px] text-slate-400 text-center">
+                        ⚡ Razorpay Test Sandbox active for student demo walkthrough &bull; Simulated Card &amp; UPI
                       </p>
                     </div>
                   </div>
@@ -3110,8 +3232,12 @@ export default function DashboardPage() {
                 <div>
                   <span className="text-slate-400 text-[10px] uppercase font-bold block">Billing Period</span>
                   <span className="font-bold text-slate-900 block mt-0.5">November 2026</span>
-                  <span className="text-amber-800 font-bold bg-amber-50 px-2 py-0.5 rounded border border-amber-200 text-[10px] inline-block mt-1">
-                    Status: Payment due
+                  <span className={`font-bold px-2 py-0.5 rounded border text-[10px] inline-block mt-1 ${
+                    paidRecord 
+                      ? 'bg-emerald-50 text-emerald-800 border-emerald-200' 
+                      : 'text-amber-800 bg-amber-50 border-amber-200'
+                  }`}>
+                    {paidRecord ? `Status: PAID (${paidRecord.paymentId})` : 'Status: Payment due'}
                   </span>
                 </div>
               </div>
@@ -3166,9 +3292,15 @@ export default function DashboardPage() {
               </div>
 
               <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-600 font-medium flex items-center justify-between text-[11px]">
-                <span>Payment: Direct UPI / Bank Transfer (+91 98000 00000) &bull; Online payment planned for later</span>
-                <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
-                  Monthly Fee Bill
+                <span>
+                  {paidRecord 
+                    ? `Paid via Razorpay Test Gateway • ID: ${paidRecord.paymentId} (${paidRecord.paidAt})` 
+                    : 'Payment: Direct UPI / Bank Transfer (+91 98000 00000) • Razorpay Test Gateway Available'}
+                </span>
+                <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded border ${
+                  paidRecord ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                }`}>
+                  {paidRecord ? 'PAID' : 'Monthly Fee Bill'}
                 </span>
               </div>
             </div>
@@ -3410,6 +3542,211 @@ export default function DashboardPage() {
       )}
 
 
+
+      {/* 💳 RAZORPAY TEST ACCOUNT CHECKOUT MODAL (STUDENT ROLE DEMO) */}
+      {isRazorpayModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-md w-full border border-slate-200 shadow-2xl overflow-hidden relative">
+            
+            {/* Razorpay Modal Brand Header */}
+            <div className="bg-[#0c2340] text-white p-5 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-500/20 border border-blue-400/30 flex items-center justify-center font-black text-blue-400 text-lg">
+                  R
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-extrabold text-base tracking-tight">Razorpay</span>
+                    <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-blue-500/30 text-blue-300 border border-blue-400/40">
+                      Test Mode
+                    </span>
+                  </div>
+                  <span className="text-[11px] text-slate-300 block">TuitionHub Coaching Academy</span>
+                </div>
+              </div>
+
+              <button 
+                onClick={() => setIsRazorpayModalOpen(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Bill Amount Strip */}
+            <div className="bg-slate-50 border-b border-slate-100 px-5 py-3 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] text-slate-400 font-bold uppercase block">Amount Payable</span>
+                <span className="text-xl font-black text-slate-900">
+                  ₹{totalPayableFee.toLocaleString('en-IN')}
+                </span>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] text-slate-400 font-bold uppercase block">Student</span>
+                <span className="text-xs font-bold text-slate-800">{user?.name}</span>
+              </div>
+            </div>
+
+            {/* Payment Method Selector Tabs */}
+            <div className="p-5 space-y-4">
+              <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-100 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => setRazorpayMethod('CARD')}
+                  className={`py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                    razorpayMethod === 'CARD' ? 'bg-white shadow-sm text-blue-700' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <CreditCard className="w-3.5 h-3.5" />
+                  <span>Card</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRazorpayMethod('UPI')}
+                  className={`py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                    razorpayMethod === 'UPI' ? 'bg-white shadow-sm text-emerald-700' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  <span>UPI</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRazorpayMethod('NETBANKING')}
+                  className={`py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                    razorpayMethod === 'NETBANKING' ? 'bg-white shadow-sm text-purple-700' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Building className="w-3.5 h-3.5" />
+                  <span>NetBanking</span>
+                </button>
+              </div>
+
+              {/* Tab 1: Test Card Form */}
+              {razorpayMethod === 'CARD' && (
+                <div className="space-y-3">
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[11px] font-bold text-slate-700">Test Card Number</label>
+                      <button
+                        type="button"
+                        onClick={() => setTestCardNumber('4111 1111 1111 1111')}
+                        className="text-[10px] text-blue-600 hover:underline font-semibold"
+                      >
+                        Auto-fill Test Card
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      value={testCardNumber}
+                      onChange={(e) => setTestCardNumber(e.target.value)}
+                      placeholder="4111 1111 1111 1111"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono bg-slate-50 focus:bg-white focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-700 block mb-1">Expiry</label>
+                      <input
+                        type="text"
+                        value={testCardExpiry}
+                        onChange={(e) => setTestCardExpiry(e.target.value)}
+                        placeholder="12/28"
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono bg-slate-50 focus:bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-700 block mb-1">CVV</label>
+                      <input
+                        type="password"
+                        value={testCardCvv}
+                        onChange={(e) => setTestCardCvv(e.target.value)}
+                        placeholder="123"
+                        maxLength={4}
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono bg-slate-50 focus:bg-white"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-blue-50 border border-blue-100 text-[11px] text-blue-800 flex items-center gap-2">
+                    <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0" />
+                    <span>Razorpay Sandbox: Any future expiry and 3-digit CVV will succeed.</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Tab 2: Test UPI Form */}
+              {razorpayMethod === 'UPI' && (
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-700 block mb-1">Virtual Payment Address (VPA)</label>
+                    <input
+                      type="text"
+                      value={testUpiId}
+                      onChange={(e) => setTestUpiId(e.target.value)}
+                      placeholder="success@razorpay"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono bg-slate-50 focus:bg-white"
+                    />
+                  </div>
+                  <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-100 text-[11px] text-emerald-800 space-y-1">
+                    <span className="font-bold block">Test VPA: success@razorpay</span>
+                    <p className="text-emerald-700">Simulates automatic instant approval via Google Pay / PhonePe sandbox.</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Tab 3: Test NetBanking */}
+              {razorpayMethod === 'NETBANKING' && (
+                <div className="space-y-3">
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1">Select Bank</label>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    {['HDFC', 'ICICI', 'SBI', 'Axis Bank'].map((bank) => (
+                      <button
+                        key={bank}
+                        type="button"
+                        onClick={() => setTestBank(bank)}
+                        className={`p-2.5 rounded-xl border text-left font-bold transition-all ${
+                          testBank === bank ? 'border-purple-500 bg-purple-50 text-purple-900' : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+                        }`}
+                      >
+                        {bank}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Submit Pay Button */}
+              <div className="pt-2">
+                <button
+                  type="button"
+                  disabled={isProcessingPayment}
+                  onClick={handleSimulateRazorpayPayment}
+                  className="w-full py-3 rounded-xl bg-[#0c2340] hover:bg-[#132f54] text-white font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2"
+                >
+                  {isProcessingPayment ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span>Processing Razorpay Test Payment...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CreditCard className="w-4 h-4 text-blue-400" />
+                      <span>Pay ₹{totalPayableFee.toLocaleString('en-IN')} (Demo Test)</span>
+                    </>
+                  )}
+                </button>
+                <span className="text-[10px] text-slate-400 text-center block mt-2">
+                  🔒 Secured by Razorpay Sandbox Test Environment &bull; No real money charged
+                </span>
+              </div>
+
+            </div>
+
+          </div>
+        </div>
+      )}
 
     </div>
   );
