@@ -1335,7 +1335,7 @@ export default function DashboardPage() {
                   Admin Master Console
                 </h2>
                 <p className="text-sm text-slate-500 mt-1">
-                  Managing 200+ Students, 14 Teachers & Hourly Financial Matrix
+                  Managing {adminDirectory.studentsCount || 0} Students &amp; {adminDirectory.teachersCount || 0} Tutors &bull; Real-time Render PostgreSQL
                 </p>
               </div>
               <div className="flex items-center gap-2 self-start sm:self-auto">
@@ -1352,29 +1352,35 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Metrics */}
+            {/* Live Metrics from Render PostgreSQL */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
                 <span className="text-xs text-slate-500">Active Students</span>
-                <div className="text-3xl font-extrabold text-slate-900 mt-1">204</div>
-                <span className="text-[11px] text-emerald-600 mt-0.5 block">+12 this month</span>
+                <div className="text-3xl font-extrabold text-slate-900 mt-1">
+                  {adminDirectory.studentsCount || 0}
+                </div>
+                <span className="text-[11px] text-emerald-600 mt-0.5 block">Live in PostgreSQL</span>
               </div>
               <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
                 <span className="text-xs text-slate-500">Active Teachers</span>
-                <div className="text-3xl font-extrabold text-slate-900 mt-1">14</div>
+                <div className="text-3xl font-extrabold text-slate-900 mt-1">
+                  {adminDirectory.teachersCount || 0}
+                </div>
                 <span className="text-[11px] text-slate-400 mt-0.5 block">1-on-1 dedicated</span>
               </div>
               <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
                 <span className="text-xs text-slate-500">Attended Hours</span>
                 <div className="text-3xl font-extrabold text-slate-900 mt-1">
-                  {840 + Number((monthlyHours ?? 0).toFixed(2))} hrs
+                  {((adminDirectory.students || []).reduce((acc, s) => acc + (s.attendedHours || 0), 0)).toFixed(1)} hrs
                 </div>
-                <span className="text-[11px] text-indigo-600 mt-0.5 block">Zero manual math</span>
+                <span className="text-[11px] text-indigo-600 mt-0.5 block">Verified lecture logs</span>
               </div>
               <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
-                <span className="text-xs text-slate-500">Monthly Revenue</span>
-                <div className="text-3xl font-extrabold text-emerald-600 mt-1">₹3,78,000</div>
-                <span className="text-[11px] text-emerald-600 mt-0.5 block">Razorpay & UPI</span>
+                <span className="text-xs text-slate-500">Total Accrued Fees</span>
+                <div className="text-3xl font-extrabold text-emerald-600 mt-1">
+                  ₹{((adminDirectory.students || []).reduce((acc, s) => acc + (s.totalFeeDue || 0), 0)).toLocaleString('en-IN')}
+                </div>
+                <span className="text-[11px] text-emerald-600 mt-0.5 block">Verified billing due</span>
               </div>
             </div>
 
