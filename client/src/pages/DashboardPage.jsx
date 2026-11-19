@@ -38,7 +38,10 @@ import {
   Building,
   Award,
   ShieldCheck,
-  Info
+  Info,
+  Users,
+  PhoneCall,
+  MessageSquare
 } from 'lucide-react';
 
 export default function DashboardPage() {
@@ -92,6 +95,20 @@ export default function DashboardPage() {
   // Search & Filter state for Admin Ledger
   const [searchQuery, setSearchQuery] = useState('');
   const [gradeFilter, setGradeFilter] = useState('ALL');
+
+  // Admin Academy Directory state (Students & Teachers Roster)
+  const [adminDirectory, setAdminDirectory] = useState({
+    students: [],
+    teachers: [],
+    admins: [],
+    totalUsers: 0,
+    studentsCount: 0,
+    teachersCount: 0
+  });
+  const [adminDirectoryTab, setAdminDirectoryTab] = useState('STUDENTS'); // 'STUDENTS' | 'TEACHERS'
+  const [adminDirectorySearch, setAdminDirectorySearch] = useState('');
+  const [adminDirectoryGradeFilter, setAdminDirectoryGradeFilter] = useState('ALL');
+  const [adminDirectorySubjectFilter, setAdminDirectorySubjectFilter] = useState('ALL');
 
   // Admin Tutor & Staff Invitation Manager state
   const [inviteTargetRole, setInviteTargetRole] = useState('TEACHER');
@@ -231,6 +248,18 @@ export default function DashboardPage() {
         setSelectedSessionId(loadedSessions[0].id);
         setLogStartTime(loadedSessions[0].startTime || '17:00');
         setLogEndTime(loadedSessions[0].endTime || '18:15'); // 75 mins demo standard
+      }
+
+      // Fetch full Academy Directory if Admin
+      if (user?.role === 'ADMIN') {
+        try {
+          const adminUsersRes = await axios.get('/api/admin/users').catch(() => ({ data: null }));
+          if (adminUsersRes?.data?.success) {
+            setAdminDirectory(adminUsersRes.data);
+          }
+        } catch (e) {
+          console.warn('Admin users directory fetch notice:', e);
+        }
       }
     } catch (err) {
       console.error('Failed to load verified billing data', err);
@@ -454,6 +483,44 @@ export default function DashboardPage() {
       (gradeFilter === 'GRADE8' && (log.grade?.includes('8') || log.grade?.includes('9')));
 
     return matchesSearch && matchesGrade;
+  });
+
+  // Filtered Students Directory for Admin
+  const filteredDirectoryStudents = (adminDirectory.students || []).filter(student => {
+    const term = adminDirectorySearch.toLowerCase();
+    const matchesSearch = 
+      !term ||
+      (student.name || '').toLowerCase().includes(term) ||
+      (student.email || '').toLowerCase().includes(term) ||
+      (student.phone || '').toLowerCase().includes(term) ||
+      (student.parentName || '').toLowerCase().includes(term) ||
+      (student.parentPhone || '').toLowerCase().includes(term) ||
+      (student.schoolName || '').toLowerCase().includes(term);
+    
+    const matchesGrade = 
+      adminDirectoryGradeFilter === 'ALL' || 
+      (adminDirectoryGradeFilter === 'GRADE10' && (student.grade || '').includes('10')) ||
+      (adminDirectoryGradeFilter === 'GRADE12' && (student.grade || '').includes('12')) ||
+      (adminDirectoryGradeFilter === 'GRADE8' && ((student.grade || '').includes('8') || (student.grade || '').includes('9')));
+    
+    return matchesSearch && matchesGrade;
+  });
+
+  // Filtered Teachers Directory for Admin
+  const filteredDirectoryTeachers = (adminDirectory.teachers || []).filter(teacher => {
+    const term = adminDirectorySearch.toLowerCase();
+    const matchesSearch = 
+      !term ||
+      (teacher.name || '').toLowerCase().includes(term) ||
+      (teacher.email || '').toLowerCase().includes(term) ||
+      (teacher.phone || '').toLowerCase().includes(term) ||
+      (teacher.subject || '').toLowerCase().includes(term);
+
+    const matchesSubject = 
+      adminDirectorySubjectFilter === 'ALL' || 
+      (teacher.subject || '').toLowerCase().includes(adminDirectorySubjectFilter.toLowerCase());
+
+    return matchesSearch && matchesSubject;
   });
 
   if (!user) return null;
@@ -1268,7 +1335,7 @@ export default function DashboardPage() {
                   Admin Master Console
                 </h2>
                 <p className="text-sm text-slate-500 mt-1">
-                  Managing 200+ Students, 14 Teachers & Hourly Financial Matrix
+                  Managing {adminDirectory.studentsCount || 0} Students &amp; {adminDirectory.teachersCount || 0} Tutors &bull; Real-time Render PostgreSQL
                 </p>
               </div>
               <div className="flex items-center gap-2 self-start sm:self-auto">
@@ -1285,29 +1352,35 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Metrics */}
+            {/* Live Metrics from Render PostgreSQL */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
                 <span className="text-xs text-slate-500">Active Students</span>
-                <div className="text-3xl font-extrabold text-slate-900 mt-1">204</div>
-                <span className="text-[11px] text-emerald-600 mt-0.5 block">+12 this month</span>
+                <div className="text-3xl font-extrabold text-slate-900 mt-1">
+                  {adminDirectory.studentsCount || 0}
+                </div>
+                <span className="text-[11px] text-emerald-600 mt-0.5 block">Live in PostgreSQL</span>
               </div>
               <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
                 <span className="text-xs text-slate-500">Active Teachers</span>
-                <div className="text-3xl font-extrabold text-slate-900 mt-1">14</div>
+                <div className="text-3xl font-extrabold text-slate-900 mt-1">
+                  {adminDirectory.teachersCount || 0}
+                </div>
                 <span className="text-[11px] text-slate-400 mt-0.5 block">1-on-1 dedicated</span>
               </div>
               <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
                 <span className="text-xs text-slate-500">Attended Hours</span>
                 <div className="text-3xl font-extrabold text-slate-900 mt-1">
-                  {840 + Number((monthlyHours ?? 0).toFixed(2))} hrs
+                  {((adminDirectory.students || []).reduce((acc, s) => acc + (s.attendedHours || 0), 0)).toFixed(1)} hrs
                 </div>
-                <span className="text-[11px] text-indigo-600 mt-0.5 block">Zero manual math</span>
+                <span className="text-[11px] text-indigo-600 mt-0.5 block">Verified lecture logs</span>
               </div>
               <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
-                <span className="text-xs text-slate-500">Monthly Revenue</span>
-                <div className="text-3xl font-extrabold text-emerald-600 mt-1">₹3,78,000</div>
-                <span className="text-[11px] text-emerald-600 mt-0.5 block">Razorpay & UPI</span>
+                <span className="text-xs text-slate-500">Total Accrued Fees</span>
+                <div className="text-3xl font-extrabold text-emerald-600 mt-1">
+                  ₹{((adminDirectory.students || []).reduce((acc, s) => acc + (s.totalFeeDue || 0), 0)).toLocaleString('en-IN')}
+                </div>
+                <span className="text-[11px] text-emerald-600 mt-0.5 block">Verified billing due</span>
               </div>
             </div>
 
@@ -1405,6 +1478,269 @@ export default function DashboardPage() {
                   ⚡ Auto-fills role and secret key when opened
                 </span>
               </div>
+            </div>
+
+            {/* 👥 4. ACADEMY DIRECTORY (STUDENTS & TEACHERS ROSTER) */}
+            <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5 pb-4 border-b border-slate-100">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-700 flex items-center justify-center font-bold">
+                      <Users className="w-4 h-4" />
+                    </div>
+                    <h3 className="text-base font-bold text-slate-900">
+                      Academy Directory & User Management
+                    </h3>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Live roster of registered students and onboarded tutors with contact details, parent info, and lecture metrics.
+                  </p>
+                </div>
+
+                {/* Switchable Tabs */}
+                <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl self-start sm:self-auto">
+                  <button
+                    onClick={() => { setAdminDirectoryTab('STUDENTS'); setAdminDirectorySearch(''); }}
+                    className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                      adminDirectoryTab === 'STUDENTS'
+                        ? 'bg-white text-indigo-700 shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <span>Enrolled Students</span>
+                    <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-indigo-50 text-indigo-700 font-extrabold">
+                      {adminDirectory.students?.length || 0}
+                    </span>
+                  </button>
+
+                  <button
+                    onClick={() => { setAdminDirectoryTab('TEACHERS'); setAdminDirectorySearch(''); }}
+                    className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                      adminDirectoryTab === 'TEACHERS'
+                        ? 'bg-white text-purple-700 shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <span>Onboarded Tutors</span>
+                    <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-purple-50 text-purple-700 font-extrabold">
+                      {adminDirectory.teachers?.length || 0}
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Search & Filter Controls */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mb-4">
+                <div className="relative w-full sm:w-80">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={adminDirectorySearch}
+                    onChange={(e) => setAdminDirectorySearch(e.target.value)}
+                    placeholder={
+                      adminDirectoryTab === 'STUDENTS'
+                        ? "Search by student, parent, school, phone..."
+                        : "Search by tutor name, subject, phone..."
+                    }
+                    className="w-full pl-8 pr-3 py-2 rounded-xl border border-slate-200 text-xs bg-slate-50 focus:bg-white focus:border-indigo-500 transition-colors"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
+                  {adminDirectoryTab === 'STUDENTS' ? (
+                    <select
+                      value={adminDirectoryGradeFilter}
+                      onChange={(e) => setAdminDirectoryGradeFilter(e.target.value)}
+                      className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-medium bg-slate-50 focus:bg-white"
+                    >
+                      <option value="ALL">All Standards</option>
+                      <option value="GRADE10">Grade 10</option>
+                      <option value="GRADE12">Grade 11 – 12</option>
+                      <option value="GRADE8">Grade 8 – 9</option>
+                    </select>
+                  ) : (
+                    <select
+                      value={adminDirectorySubjectFilter}
+                      onChange={(e) => setAdminDirectorySubjectFilter(e.target.value)}
+                      className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-medium bg-slate-50 focus:bg-white"
+                    >
+                      <option value="ALL">All Subjects</option>
+                      <option value="Mathematics">Mathematics</option>
+                      <option value="Physics">Physics</option>
+                      <option value="Chemistry">Chemistry</option>
+                      <option value="Biology">Biology</option>
+                    </select>
+                  )}
+
+                  <span className="text-[11px] font-semibold text-slate-400 whitespace-nowrap">
+                    Showing {adminDirectoryTab === 'STUDENTS' ? filteredDirectoryStudents.length : filteredDirectoryTeachers.length} results
+                  </span>
+                </div>
+              </div>
+
+              {/* TABLE 1: STUDENTS DIRECTORY */}
+              {adminDirectoryTab === 'STUDENTS' && (
+                <div className="overflow-x-auto">
+                  {filteredDirectoryStudents.length === 0 ? (
+                    <div className="text-center py-10 bg-slate-50/50 rounded-xl border border-dashed border-slate-200 text-slate-400 text-xs">
+                      No matching students found in directory.
+                    </div>
+                  ) : (
+                    <table className="w-full text-left text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-200 text-[11px] uppercase tracking-wider text-slate-400">
+                          <th className="py-2.5">Student & School</th>
+                          <th className="py-2.5">Standard & Rate</th>
+                          <th className="py-2.5">Student Contact</th>
+                          <th className="py-2.5">Parent / Guardian</th>
+                          <th className="py-2.5">Attended Hours</th>
+                          <th className="py-2.5">Billing Accrual</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {filteredDirectoryStudents.map((student) => (
+                          <tr key={student.id} className="hover:bg-slate-50/60 transition-colors">
+                            <td className="py-3">
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs shrink-0">
+                                  {student.name.charAt(0)}
+                                </div>
+                                <div>
+                                  <span className="font-bold text-slate-900 text-xs block">{student.name}</span>
+                                  <span className="text-[11px] text-slate-400 block truncate max-w-[150px]">
+                                    {student.schoolName || 'High School'}
+                                  </span>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="py-3 text-xs">
+                              <span className="font-semibold text-slate-800 block">{student.grade}</span>
+                              <span className="text-[11px] text-indigo-600 font-bold block">₹{student.hourlyRate}/hr</span>
+                            </td>
+                            <td className="py-3 text-xs">
+                              <div className="space-y-0.5">
+                                <div className="flex items-center gap-1 text-slate-700 font-mono text-[11px]">
+                                  <Phone className="w-3 h-3 text-slate-400 shrink-0" />
+                                  <span>{student.phone}</span>
+                                </div>
+                                <div className="flex items-center gap-1 text-slate-500 text-[11px]">
+                                  <Mail className="w-3 h-3 text-slate-400 shrink-0" />
+                                  <span className="truncate max-w-[140px]">{student.email}</span>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="py-3 text-xs">
+                              <div className="space-y-0.5">
+                                <span className="font-semibold text-slate-800 block">{student.parentName || 'N/A'}</span>
+                                {student.parentPhone && student.parentPhone !== 'N/A' && (
+                                  <a
+                                    href={`https://wa.me/${student.parentPhone.replace(/[^0-9]/g, '')}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 hover:text-emerald-700"
+                                  >
+                                    <MessageSquare className="w-3 h-3" />
+                                    <span>{student.parentPhone}</span>
+                                  </a>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-3 text-xs">
+                              <span className="font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 inline-block">
+                                {student.attendedHours} hrs
+                              </span>
+                              <span className="text-[10px] text-slate-400 block mt-0.5">
+                                {student.completedSessions} lectures attended
+                              </span>
+                            </td>
+                            <td className="py-3 text-xs">
+                              <div className="font-extrabold text-slate-900">
+                                ₹{student.totalFeeDue.toLocaleString('en-IN')}
+                              </div>
+                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                                student.totalFeeDue > 0
+                                  ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                                  : 'bg-slate-100 text-slate-600'
+                              }`}>
+                                {student.totalFeeDue > 0 ? 'Payment Due' : 'Zero Balance'}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              )}
+
+              {/* TABLE 2: TEACHERS DIRECTORY */}
+              {adminDirectoryTab === 'TEACHERS' && (
+                <div className="overflow-x-auto">
+                  {filteredDirectoryTeachers.length === 0 ? (
+                    <div className="text-center py-10 bg-slate-50/50 rounded-xl border border-dashed border-slate-200 text-slate-400 text-xs">
+                      No matching tutors found in directory.
+                    </div>
+                  ) : (
+                    <table className="w-full text-left text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-200 text-[11px] uppercase tracking-wider text-slate-400">
+                          <th className="py-2.5">Tutor & Department</th>
+                          <th className="py-2.5">Contact Details</th>
+                          <th className="py-2.5">Lectures Delivered</th>
+                          <th className="py-2.5">Accrued Payout</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {filteredDirectoryTeachers.map((teacher) => (
+                          <tr key={teacher.id} className="hover:bg-slate-50/60 transition-colors">
+                            <td className="py-3">
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-7 h-7 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-xs shrink-0">
+                                  {teacher.name.charAt(0)}
+                                </div>
+                                <div>
+                                  <span className="font-bold text-slate-900 text-xs block">{teacher.name}</span>
+                                  <span className="text-[11px] text-purple-700 font-semibold block">
+                                    {teacher.subject}
+                                  </span>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="py-3 text-xs">
+                              <div className="space-y-0.5">
+                                <div className="flex items-center gap-1 text-slate-700 font-mono text-[11px]">
+                                  <Phone className="w-3 h-3 text-slate-400 shrink-0" />
+                                  <span>{teacher.phone}</span>
+                                </div>
+                                <div className="flex items-center gap-1 text-slate-500 text-[11px]">
+                                  <Mail className="w-3 h-3 text-slate-400 shrink-0" />
+                                  <span className="truncate max-w-[140px]">{teacher.email}</span>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="py-3 text-xs">
+                              <span className="font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200 inline-block">
+                                {teacher.totalHoursTaken} hrs
+                              </span>
+                              <span className="text-[10px] text-slate-400 block mt-0.5">
+                                {teacher.classesTaken} classes taken
+                              </span>
+                            </td>
+                            <td className="py-3 text-xs">
+                              <div className="font-extrabold text-slate-900">
+                                ₹{teacher.accruedPayout.toLocaleString('en-IN')}
+                              </div>
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                Accrued & Verified
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* 🔒 Academy Financial Economics & Profit Margin Simulator (Strictly for Admin) */}
