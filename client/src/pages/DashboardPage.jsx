@@ -1686,7 +1686,6 @@ export default function DashboardPage() {
                         <tr className="border-b border-slate-200 text-[11px] uppercase tracking-wider text-slate-400">
                           <th className="py-2.5">Tutor & Department</th>
                           <th className="py-2.5">Contact Details</th>
-                          <th className="py-2.5">Virtual Classroom</th>
                           <th className="py-2.5">Lectures Delivered</th>
                           <th className="py-2.5">Accrued Payout</th>
                         </tr>
@@ -1718,18 +1717,6 @@ export default function DashboardPage() {
                                   <span className="truncate max-w-[140px]">{teacher.email}</span>
                                 </div>
                               </div>
-                            </td>
-                            <td className="py-3 text-xs">
-                              <a
-                                href={teacher.defaultMeetLink}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-100"
-                              >
-                                <Video className="w-3 h-3" />
-                                <span>Google Meet Room</span>
-                                <ExternalLink className="w-3 h-3 opacity-60" />
-                              </a>
                             </td>
                             <td className="py-3 text-xs">
                               <span className="font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200 inline-block">
