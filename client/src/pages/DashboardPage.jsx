@@ -279,10 +279,12 @@ export default function DashboardPage() {
             setActionSuccess(`Payment received! (Payment ID: ${response.razorpay_payment_id})`);
           }
         },
+        remember_customer: false,
+        send_sms_hash: false,
         prefill: {
           name: user?.name || 'Aryan Sharma',
-          email: user?.email || 'student@tuitionhub.com',
-          contact: user?.phone || '9876543210'
+          email: 'student@tuitionhub.com',
+          contact: '9999999999'
         },
         notes: {
           studentId: user?.id || 'demo_student',
