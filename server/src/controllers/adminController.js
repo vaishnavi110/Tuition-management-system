@@ -286,7 +286,68 @@ const deleteAdminUser = async (req, res) => {
   res.json({ message: 'User account removed from directory.' });
 };
 
+const inviteService = require('../services/inviteService');
+
+// GET /api/admin/invites
+const getAdminInvites = async (req, res) => {
+  try {
+    const invites = inviteService.listInvites();
+    res.json({
+      success: true,
+      invites
+    });
+  } catch (error) {
+    console.error('getAdminInvites error:', error);
+    res.status(500).json({ error: 'Failed to fetch invitation codes' });
+  }
+};
+
+// POST /api/admin/invites
+const createAdminInvite = async (req, res) => {
+  try {
+    const { role, subject, customCode } = req.body;
+    const createdBy = req.user?.name || 'Managing Director Sharma';
+
+    const newInvite = inviteService.createInvite({
+      role: role || 'TEACHER',
+      subject: subject || 'General Studies',
+      customCode,
+      createdBy
+    });
+
+    res.status(201).json({
+      success: true,
+      message: `Invitation code ${newInvite.code} generated successfully!`,
+      invite: newInvite
+    });
+  } catch (error) {
+    console.error('createAdminInvite error:', error);
+    res.status(500).json({ error: 'Failed to generate invitation code' });
+  }
+};
+
+// DELETE /api/admin/invites/:code
+const revokeAdminInvite = async (req, res) => {
+  try {
+    const { code } = req.params;
+    const success = inviteService.revokeInvite(code);
+    if (!success) {
+      return res.status(404).json({ error: 'Invitation code not found' });
+    }
+    res.json({
+      success: true,
+      message: `Invitation code ${code} revoked successfully`
+    });
+  } catch (error) {
+    console.error('revokeAdminInvite error:', error);
+    res.status(500).json({ error: 'Failed to revoke invitation code' });
+  }
+};
+
 module.exports = {
   getAdminUsers,
-  deleteAdminUser
+  deleteAdminUser,
+  getAdminInvites,
+  createAdminInvite,
+  revokeAdminInvite
 };

@@ -37,9 +37,10 @@ export default function RegisterPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
-  // URL query params support (e.g. /register?role=TEACHER&code=TUTOR-2026-INVITE)
+  // URL query params support (e.g. /register?role=TEACHER&code=TUTOR-2026-INVITE&subject=Chemistry)
   const initialRole = searchParams.get('role')?.toUpperCase() || 'STUDENT';
   const initialCode = searchParams.get('code') || '';
+  const initialSubject = searchParams.get('subject') || 'Mathematics';
 
   const [role, setRole] = useState(initialRole); // STUDENT | TEACHER | ADMIN
   const [inviteCode, setInviteCode] = useState(initialCode);
@@ -56,7 +57,7 @@ export default function RegisterPage() {
   const [schoolName, setSchoolName] = useState('');
 
   // Teacher specific fields (Authorized Invite Only)
-  const [subject, setSubject] = useState('Mathematics');
+  const [subject, setSubject] = useState(initialSubject);
   const [qualification, setQualification] = useState('');
 
   // Admin specific fields (Authorized Invite Only)
