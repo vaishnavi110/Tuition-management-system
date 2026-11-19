@@ -64,8 +64,10 @@ export default function DashboardPage() {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
   // Form states for new session
-  const [studentName, setStudentName] = useState('Aryan Sharma');
-  const [subject, setSubject] = useState('Mathematics');
+  const [enrolledStudents, setEnrolledStudents] = useState([]);
+  const [selectedStudentId, setSelectedStudentId] = useState('');
+  const [studentName, setStudentName] = useState('');
+  const [subject, setSubject] = useState('');
   const [topic, setTopic] = useState('');
   const [classDate, setClassDate] = useState(new Date().toISOString().split('T')[0]);
   const [startTime, setStartTime] = useState('17:00');
@@ -152,12 +154,22 @@ export default function DashboardPage() {
       setProfileParentName(user.parentName || '');
       setProfileParentPhone(user.parentPhone || '');
       setProfileSchoolName(user.schoolName || '');
-      setProfileSubject(user.subject || 'Mathematics');
+      setProfileSubject(user.subject || '');
       setProfileQualification(user.qualification || '');
       setProfileBankAccount(user.bankAccount || '');
       setProfileDesignation(user.designation || '');
     }
     setIsProfileModalOpen(true);
+  };
+
+  // Open Schedule Modal and set default subject and student
+  const openScheduleModal = () => {
+    setSubject(user?.subject || 'Mathematics');
+    if (enrolledStudents.length > 0 && !selectedStudentId) {
+      setSelectedStudentId(enrolledStudents[0].id);
+      setStudentName(enrolledStudents[0].name);
+    }
+    setIsScheduleModalOpen(true);
   };
 
   // Save profile changes
@@ -248,6 +260,21 @@ export default function DashboardPage() {
         setSelectedSessionId(loadedSessions[0].id);
         setLogStartTime(loadedSessions[0].startTime || '17:00');
         setLogEndTime(loadedSessions[0].endTime || '18:15'); // 75 mins demo standard
+      }
+
+      // Fetch enrolled students list for session scheduling (Teachers and Admins)
+      if (user?.role === 'TEACHER' || user?.role === 'ADMIN') {
+        try {
+          const studentsRes = await axios.get('/api/schedule/students').catch(() => ({ data: { students: [] } }));
+          const list = studentsRes.data?.students || [];
+          setEnrolledStudents(list);
+          if (list.length > 0) {
+            setSelectedStudentId(list[0].id);
+            setStudentName(list[0].name);
+          }
+        } catch (e) {
+          console.warn('Enrolled students fetch notice:', e);
+        }
       }
 
       // Fetch full Academy Directory if Admin
@@ -364,9 +391,14 @@ export default function DashboardPage() {
     }
 
     try {
+      const chosenStudent = enrolledStudents.find(s => s.id === selectedStudentId || s.userId === selectedStudentId);
+      const targetStudentName = chosenStudent ? chosenStudent.name : studentName;
+      const targetStudentId = chosenStudent ? chosenStudent.id : selectedStudentId;
+
       const res = await axios.post('/api/schedule/sessions', {
-        studentName,
-        subject,
+        studentId: targetStudentId,
+        studentName: targetStudentName,
+        subject: subject || (user?.subject || 'Mathematics'),
         topic,
         date: classDate,
         startTime,
@@ -954,7 +986,7 @@ export default function DashboardPage() {
                   <span>Teacher Profile</span>
                 </button>
                 <button 
-                  onClick={() => setIsScheduleModalOpen(true)}
+                  onClick={openScheduleModal}
                   className="px-4 py-2.5 rounded-xl font-bold text-xs bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-1.5 shadow-md shadow-indigo-100 transition-all"
                 >
                   <Plus className="w-4 h-4" /> Schedule 1-on-1 Class
@@ -2319,15 +2351,33 @@ export default function DashboardPage() {
             <form onSubmit={handleCreateSession} className="space-y-4">
               <div>
                 <label className="text-xs font-bold text-slate-700 block mb-1">Select Student</label>
-                <select 
-                  value={studentName} 
-                  onChange={(e) => setStudentName(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm bg-white"
-                >
-                  <option value="Aryan Sharma">Aryan Sharma (Grade 10)</option>
-                  <option value="Priya Patel">Priya Patel (Grade 12)</option>
-                  <option value="Rohan Kulkarni">Rohan Kulkarni (Grade 8)</option>
-                </select>
+                {enrolledStudents.length === 0 ? (
+                  <input 
+                    type="text"
+                    required
+                    value={studentName}
+                    onChange={(e) => setStudentName(e.target.value)}
+                    placeholder="Enter student full name"
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm bg-white"
+                  />
+                ) : (
+                  <select 
+                    value={selectedStudentId} 
+                    onChange={(e) => {
+                      const sid = e.target.value;
+                      setSelectedStudentId(sid);
+                      const s = enrolledStudents.find(item => item.id === sid || item.userId === sid);
+                      if (s) setStudentName(s.name);
+                    }}
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm bg-white font-medium"
+                  >
+                    {enrolledStudents.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name} ({s.grade})
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">

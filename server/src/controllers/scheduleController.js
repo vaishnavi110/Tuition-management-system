@@ -211,10 +211,47 @@ const getSessions = async (req, res) => {
   res.json({ sessions: filtered });
 };
 
-const createSession = async (req, res) => {
-  const { studentName, subject, topic, date, startTime, endTime, meetLink } = req.body;
+// GET /api/schedule/students
+// Returns enrolled students for session scheduling
+const getEnrolledStudents = async (req, res) => {
+  try {
+    const students = await prisma.studentProfile.findMany({
+      include: {
+        user: true,
+        grade: true
+      },
+      orderBy: { user: { name: 'asc' } }
+    });
 
-  if (!studentName || !subject || !date || !startTime || !endTime) {
+    if (students && students.length > 0) {
+      const formatted = students.map(s => ({
+        id: s.id,
+        userId: s.userId,
+        name: s.user?.name || 'Enrolled Student',
+        email: s.user?.emailOrPhone || '',
+        phone: s.phone || s.user?.phone || '',
+        grade: s.grade?.name || 'Grade 10 (Board)',
+        hourlyRate: s.grade?.studentHourlyRate || 400
+      }));
+      return res.json({ students: formatted });
+    }
+  } catch (err) {
+    console.warn('Prisma getEnrolledStudents notice:', err.message);
+  }
+
+  res.json({
+    students: [
+      { id: 'user-student-1', userId: 'user-student-1', name: 'Aryan Sharma', grade: 'Grade 10 (Board)', hourlyRate: 400 },
+      { id: 'user-student-2', userId: 'user-student-2', name: 'Priya Patel', grade: 'Grade 12 (Board)', hourlyRate: 600 },
+      { id: 'user-student-3', userId: 'user-student-3', name: 'Rohan Gupta', grade: 'Grade 8 – 9', hourlyRate: 350 }
+    ]
+  });
+};
+
+const createSession = async (req, res) => {
+  const { studentName, studentId, subject, topic, date, startTime, endTime, meetLink } = req.body;
+
+  if ((!studentName && !studentId) || !subject || !date || !startTime || !endTime) {
     return res.status(400).json({ error: 'Missing required session fields.' });
   }
 
@@ -237,9 +274,25 @@ const createSession = async (req, res) => {
       where: { userId: req.user.id }
     }) || await prisma.teacherProfile.findFirst();
 
-    const studentProf = await prisma.studentProfile.findFirst({
-      include: { grade: true, user: true }
-    });
+    // Dynamically find target student
+    let studentProf = null;
+    if (studentId) {
+      studentProf = await prisma.studentProfile.findFirst({
+        where: { OR: [{ id: studentId }, { userId: studentId }] },
+        include: { grade: true, user: true }
+      });
+    }
+    if (!studentProf && studentName) {
+      studentProf = await prisma.studentProfile.findFirst({
+        where: { user: { name: { equals: studentName.trim(), mode: 'insensitive' } } },
+        include: { grade: true, user: true }
+      });
+    }
+    if (!studentProf) {
+      studentProf = await prisma.studentProfile.findFirst({
+        include: { grade: true, user: true }
+      });
+    }
 
     if (teacherProf && studentProf) {
       const startDateTime = new Date(`${date}T${startTime}:00`);
@@ -268,7 +321,7 @@ const createSession = async (req, res) => {
         teacherId: created.teacher?.userId,
         teacherName: created.teacher?.user?.name || req.user.name,
         studentId: created.student?.userId,
-        studentName: created.student?.user?.name || studentName.trim(),
+        studentName: created.student?.user?.name || studentName?.trim() || 'Student',
         grade: created.student?.grade?.name || 'Grade 10 (Board)',
         subject: created.subject,
         topic: topic ? topic.trim() : '1-on-1 Class Session',
@@ -294,8 +347,8 @@ const createSession = async (req, res) => {
     id: `session-${Date.now()}`,
     teacherId: req.user.id,
     teacherName: req.user.name,
-    studentId: 'user-student-1',
-    studentName: studentName.trim(),
+    studentId: studentId || 'user-student-1',
+    studentName: studentName ? studentName.trim() : 'Enrolled Student',
     grade: 'Grade 10 (Board)',
     subject: subject.trim(),
     topic: topic ? topic.trim() : 'General Class',
@@ -391,6 +444,7 @@ module.exports = {
   createGrade,
   updateGrade,
   getSessions,
+  getEnrolledStudents,
   createSession,
   rescheduleSession,
   cancelSession
