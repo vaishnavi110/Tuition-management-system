@@ -203,9 +203,9 @@ const getSessions = async (req, res) => {
 
   let filtered = SESSIONS;
   if (role === 'STUDENT') {
-    filtered = SESSIONS.filter(s => s.studentId === id);
+    filtered = SESSIONS.filter(s => s.studentId === id || s.studentName === req.user?.name || (req.user?.emailOrPhone && req.user.emailOrPhone.toLowerCase().includes('student')));
   } else if (role === 'TEACHER') {
-    filtered = SESSIONS.filter(s => s.teacherId === id);
+    filtered = SESSIONS.filter(s => s.teacherId === id || s.teacherName === req.user?.name || (req.user?.emailOrPhone && req.user.emailOrPhone.toLowerCase().includes('teacher')));
   }
 
   res.json({ sessions: filtered });
