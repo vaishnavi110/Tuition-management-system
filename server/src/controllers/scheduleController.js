@@ -25,6 +25,7 @@ let SESSIONS = [
     savedStudentRate: 400.0,
     savedTeacherRate: 250.0,
     meetLink: 'https://meet.google.com/abc-defg-hij',
+    recordingUrl: 'https://www.youtube.com/watch?v=ZBalWWHY4Go',
     status: 'COMPLETED'
   },
   {
@@ -186,6 +187,7 @@ const getSessions = async (req, res) => {
           durationMinutes: s.classLog?.durationMinutes || 60,
           durationHours: s.classLog?.durationHours || 1.0,
           meetLink: s.meetLink,
+          recordingUrl: s.recordingUrl || null,
           status: s.status,
           studentLinkOpenedAt: s.studentLinkOpenedAt,
           teacherLinkOpenedAt: s.teacherLinkOpenedAt,
@@ -437,6 +439,38 @@ const cancelSession = async (req, res) => {
   res.json({ message: 'Class cancelled. As per policy, ₹0 is charged.', session });
 };
 
+// PATCH /api/schedule/sessions/:id/recording
+const updateSessionRecording = async (req, res) => {
+  const { id } = req.params;
+  const { recordingUrl } = req.body;
+
+  try {
+    const updated = await prisma.session.update({
+      where: { id },
+      data: { recordingUrl: recordingUrl ? recordingUrl.trim() : null }
+    });
+    return res.json({
+      success: true,
+      message: 'Class recording URL updated successfully',
+      session: updated
+    });
+  } catch (err) {
+    console.warn('Prisma updateSessionRecording notice:', err.message);
+  }
+
+  const sess = SESSIONS.find(s => s.id === id);
+  if (sess) {
+    sess.recordingUrl = recordingUrl ? recordingUrl.trim() : null;
+    return res.json({
+      success: true,
+      message: 'Class recording URL updated successfully',
+      session: sess
+    });
+  }
+
+  res.status(404).json({ error: 'Class session not found.' });
+};
+
 module.exports = {
   GRADES,
   SESSIONS,
@@ -447,5 +481,6 @@ module.exports = {
   getEnrolledStudents,
   createSession,
   rescheduleSession,
-  cancelSession
+  cancelSession,
+  updateSessionRecording
 };

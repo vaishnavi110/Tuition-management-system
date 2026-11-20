@@ -84,7 +84,8 @@ const submitClassLog = async (req, res) => {
     attendanceStatus,
     confirmationRemarks,
     topicsCovered,
-    homeworkAssigned
+    homeworkAssigned,
+    recordingUrl
   } = req.body;
 
   if (!startTime || !endTime || !topicsCovered) {
@@ -169,10 +170,13 @@ const submitClassLog = async (req, res) => {
           }
         });
 
-        // Update session status
+        // Update session status and recording URL if provided
         await prisma.session.update({
           where: { id: sessionId },
-          data: { status: isPresent ? 'COMPLETED' : 'CANCELLED' }
+          data: { 
+            status: isPresent ? 'COMPLETED' : 'CANCELLED',
+            ...(recordingUrl !== undefined ? { recordingUrl: recordingUrl ? recordingUrl.trim() : null } : {})
+          }
         });
 
         const clientLog = {
@@ -192,6 +196,7 @@ const submitClassLog = async (req, res) => {
           attendanceStatus: savedLog.attendanceStatus,
           isStudentPresent: isPresent,
           billableHours: savedLog.durationHours,
+          recordingUrl: recordingUrl ? recordingUrl.trim() : existingSession.recordingUrl,
           billableAmount: savedLog.billableAmount,
           teacherPayoutAmount: savedLog.teacherPayoutAmount,
           confirmedAt: savedLog.confirmedAt.toISOString(),
@@ -238,8 +243,17 @@ const submitClassLog = async (req, res) => {
     confirmationRemarks: confirmationRemarks || '',
     topicsCovered: topicsCovered.trim(),
     homeworkAssigned: homeworkAssigned ? homeworkAssigned.trim() : 'No homework assigned',
+    recordingUrl: recordingUrl ? recordingUrl.trim() : null,
     createdAt: new Date().toISOString()
   };
+
+  const matchedSession = SESSIONS.find(s => s.id === sessionId);
+  if (matchedSession) {
+    matchedSession.status = isPresent ? 'COMPLETED' : 'CANCELLED';
+    if (recordingUrl !== undefined) {
+      matchedSession.recordingUrl = recordingUrl ? recordingUrl.trim() : null;
+    }
+  }
 
   CLASS_LOGS.unshift(newLog);
 
@@ -293,6 +307,7 @@ const getMonthlySummary = async (req, res) => {
           confirmedBy: l.confirmedBy,
           confirmationRemarks: l.confirmationRemarks,
           topicsCovered: l.topicsCovered,
+          recordingUrl: l.session?.recordingUrl || null,
           createdAt: l.createdAt.toISOString()
         };
       });

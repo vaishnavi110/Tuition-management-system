@@ -529,9 +529,72 @@ async function runTestSuite() {
     assert(revokedRegRes.status === 403, 'Registration with revoked code is strictly blocked (HTTP 403)');
 
     // -------------------------------------------------------------------------
-    // 12. Automated Teardown of Temporary Test Users
+    // 12. Class Recordings & Revision Vault Feature Verification (#50)
     // -------------------------------------------------------------------------
-    console.log('\n--- 12. Automated Teardown of Temporary Test Users ---');
+    console.log('\n--- 12. Class Recordings Vault & Revision Workflow ---');
+
+    // 12.1 Teacher fetches sessions to find a target session
+    const teacherSessionsRes = await request('GET', '/schedule/sessions', null, teacherToken);
+    assert(teacherSessionsRes.status === 200, 'Teacher fetches session schedule');
+    const targetSession = teacherSessionsRes.data.sessions[0];
+    assert(Boolean(targetSession && targetSession.id), 'Active class session found for recording attachment');
+
+    // 12.2 Teacher attaches an educational YouTube recording link to the session
+    const demoYoutubeUrl = 'https://www.youtube.com/watch?v=ZBalWWHY4Go';
+    const attachRecordingRes = await request('PATCH', `/schedule/sessions/${targetSession.id}/recording`, {
+      recordingUrl: demoYoutubeUrl
+    }, teacherToken);
+    assert(attachRecordingRes.status === 200, 'Teacher attaches recording URL to session (HTTP 200)');
+    assert(attachRecordingRes.data.session.recordingUrl === demoYoutubeUrl, 'Attached recording URL verified in API response');
+
+    // 12.3 Student fetches sessions and verifies recording URL is accessible in their vault
+    const studentRecordingVaultRes = await request('GET', '/schedule/sessions', null, studentToken);
+    assert(studentRecordingVaultRes.status === 200, 'Student fetches sessions for revision vault');
+    const studentVaultSession = studentRecordingVaultRes.data.sessions.find(s => s.id === targetSession.id);
+    assert(studentVaultSession && studentVaultSession.recordingUrl === demoYoutubeUrl, 'Student can access class recording URL in their revision vault');
+
+    // 12.4 Teacher submits a completed class log with a recording URL
+    const logWithRecordingRes = await request('POST', '/logs/submit', {
+      sessionId: targetSession.id,
+      studentId: targetSession.studentId || 'user-student-1',
+      studentName: targetSession.studentName || 'Aryan Sharma',
+      grade: targetSession.grade || 'Grade 10 (Board)',
+      subject: targetSession.subject || 'Mathematics',
+      date: new Date().toISOString().split('T')[0],
+      startTime: '16:00',
+      endTime: '17:30',
+      isStudentPresent: true,
+      topicsCovered: 'Quadratic Equations Deep-Dive and Formula Derivation',
+      homeworkAssigned: 'Exercise 4.3 questions 1 to 5',
+      recordingUrl: 'https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs/view'
+    }, teacherToken);
+    assert(logWithRecordingRes.status === 201, 'Teacher submits class log with recording URL (HTTP 201)');
+    assert(logWithRecordingRes.data.log.recordingUrl === 'https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs/view', 'Submitted log preserves recording URL');
+
+    // 12.5 Student fetches monthly summary and confirms class log history includes recording URL
+    const studentLogsSummaryRes = await request('GET', '/logs/monthly-summary', null, studentToken);
+    assert(studentLogsSummaryRes.status === 200, 'Student fetches monthly summary with class logs');
+    const logsList = studentLogsSummaryRes.data.summary?.logs || [];
+    const logWithRec = logsList.find(l => l.recordingUrl);
+    assert(Boolean(logWithRec), 'Student class log history includes recording URL for replay');
+
+    // 12.6 Security check: Student role cannot patch recording URL (requires TEACHER or ADMIN)
+    const unauthorizedPatchRes = await request('PATCH', `/schedule/sessions/${targetSession.id}/recording`, {
+      recordingUrl: 'https://malicious-link.example.com'
+    }, studentToken);
+    assert(unauthorizedPatchRes.status === 403, 'Student is strictly blocked from modifying session recordings (HTTP 403)');
+
+    // 12.7 Teacher can update / clear recording link cleanly
+    const clearRecordingRes = await request('PATCH', `/schedule/sessions/${targetSession.id}/recording`, {
+      recordingUrl: demoYoutubeUrl // reset back to valid educational demo
+    }, teacherToken);
+    assert(clearRecordingRes.status === 200, 'Teacher can update or reset recording link cleanly (HTTP 200)');
+    assert(clearRecordingRes.data.session.recordingUrl === demoYoutubeUrl, 'Session recording URL properly reset for ongoing student revision');
+
+    // -------------------------------------------------------------------------
+    // 13. Automated Teardown of Temporary Test Users
+    // -------------------------------------------------------------------------
+    console.log('\n--- 13. Automated Teardown of Temporary Test Users ---');
     let cleanupSuccess = 0;
     for (const userId of createdTestUserIds) {
       try {
