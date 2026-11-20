@@ -42,7 +42,8 @@ import {
   Users,
   PhoneCall,
   MessageSquare,
-  Menu
+  Menu,
+  Play
 } from 'lucide-react';
 
 export default function DashboardPage() {
@@ -115,6 +116,16 @@ export default function DashboardPage() {
   const [homeworkAssignedText, setHomeworkAssignedText] = useState('Complete Exercise 4.2 Questions 1 to 6 in homework notebook.');
   const [classLogged, setClassLogged] = useState(false);
   const [isSubmittingLog, setIsSubmittingLog] = useState(false);
+  const [logRecordingUrl, setLogRecordingUrl] = useState('');
+
+  // 🎥 Class Recordings & Revision Vault state
+  const [selectedRecordingSession, setSelectedRecordingSession] = useState(null);
+  const [recordingSearch, setRecordingSearch] = useState('');
+  const [recordingSubjectFilter, setRecordingSubjectFilter] = useState('ALL');
+  const [isEditRecordingModalOpen, setIsEditRecordingModalOpen] = useState(false);
+  const [editingSessionForRecording, setEditingSessionForRecording] = useState(null);
+  const [editRecordingInput, setEditRecordingInput] = useState('');
+  const [isSavingRecording, setIsSavingRecording] = useState(false);
 
   // Admin Simulator state (Confidential Executive Tool)
   const [adminSimGrade, setAdminSimGrade] = useState('grade10');
@@ -604,7 +615,8 @@ export default function DashboardPage() {
         endTime: logEndTime,
         isStudentPresent: isClassPresent,
         topicsCovered: topicsCoveredText,
-        homeworkAssigned: homeworkAssignedText
+        homeworkAssigned: homeworkAssignedText,
+        recordingUrl: logRecordingUrl.trim() || undefined
       };
 
       const res = await axios.post('/api/logs/submit', payload);
@@ -613,6 +625,8 @@ export default function DashboardPage() {
       setClassLogs(prev => [newLog, ...prev]);
       setMonthlyHours(prev => Number((prev + newLog.billableHours).toFixed(2)));
       setClassLogged(true);
+      setSessions(prev => prev.map(s => s.id === selectedSessionId ? { ...s, recordingUrl: logRecordingUrl.trim() || s.recordingUrl, status: 'COMPLETED' } : s));
+      setLogRecordingUrl('');
       setActionSuccess(`Class log saved. ${newLog.billableHours} hours added to the fee bill.`);
       setTimeout(() => setActionSuccess(''), 5000);
     } catch (err) {
@@ -620,6 +634,80 @@ export default function DashboardPage() {
     } finally {
       setIsSubmittingLog(false);
     }
+  };
+
+  // 🎥 Class Recording & Embed Helper Handlers
+  const handleOpenEditRecording = (session) => {
+    setEditingSessionForRecording(session);
+    setEditRecordingInput(session.recordingUrl || '');
+    setIsEditRecordingModalOpen(true);
+  };
+
+  const handleSaveRecordingUrl = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!editingSessionForRecording) return;
+    setIsSavingRecording(true);
+    try {
+      const trimmed = editRecordingInput.trim() || null;
+      await axios.patch(`/api/schedule/sessions/${editingSessionForRecording.id}/recording`, {
+        recordingUrl: trimmed
+      });
+      setSessions(prev => prev.map(s => s.id === editingSessionForRecording.id ? { ...s, recordingUrl: trimmed } : s));
+      setClassLogs(prev => prev.map(l => l.sessionId === editingSessionForRecording.id ? { ...l, recordingUrl: trimmed } : l));
+      setIsEditRecordingModalOpen(false);
+      setActionSuccess(trimmed ? 'Class recording attached successfully.' : 'Class recording removed.');
+      setTimeout(() => setActionSuccess(''), 4000);
+    } catch (err) {
+      console.error('Failed to update class recording URL:', err);
+    } finally {
+      setIsSavingRecording(false);
+    }
+  };
+
+  const getEmbeddableVideoUrl = (url) => {
+    if (!url) return null;
+    const clean = url.trim();
+
+    // 1. YouTube standard & short URLs
+    const ytMatch = clean.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+    if (ytMatch && ytMatch[1]) {
+      return {
+        type: 'YOUTUBE',
+        src: `https://www.youtube.com/embed/${ytMatch[1]}?autoplay=1&rel=0`
+      };
+    }
+
+    // 2. Google Drive video preview URL
+    const driveMatch = clean.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/);
+    if (driveMatch && driveMatch[1]) {
+      return {
+        type: 'DRIVE',
+        src: `https://drive.google.com/file/d/${driveMatch[1]}/preview`
+      };
+    }
+
+    // 3. Loom video embed URL
+    const loomMatch = clean.match(/loom\.com\/(?:share|embed)\/([a-zA-Z0-9]+)/);
+    if (loomMatch && loomMatch[1]) {
+      return {
+        type: 'LOOM',
+        src: `https://www.loom.com/embed/${loomMatch[1]}`
+      };
+    }
+
+    // 4. Direct video files (.mp4, .webm)
+    if (clean.endsWith('.mp4') || clean.endsWith('.webm') || clean.includes('.mp4?')) {
+      return {
+        type: 'DIRECT_VIDEO',
+        src: clean
+      };
+    }
+
+    // 5. Generic URL
+    return {
+      type: 'GENERIC',
+      src: clean
+    };
   };
 
   // Schedule a new 1-on-1 session
@@ -903,6 +991,7 @@ export default function DashboardPage() {
     if (role === 'STUDENT') {
       if (activeTab === 'CLASSES') return 'Scheduled Classes';
       if (activeTab === 'HISTORY') return "Completed Classes";
+      if (activeTab === 'RECORDINGS') return 'Class Recordings & Revision';
       if (activeTab === 'FEES') return 'Monthly Fee Bill';
       if (activeTab === 'HOMEWORK') return 'Homework & Practice';
       return 'Student Dashboard';
@@ -1005,6 +1094,18 @@ export default function DashboardPage() {
               >
                 <Clock className="w-4 h-4 shrink-0" />
                 <span>Completed Classes</span>
+              </button>
+
+              <button
+                onClick={() => { setActiveTab('RECORDINGS'); setIsMobileMenuOpen(false); }}
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === 'RECORDINGS'
+                    ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-200'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                }`}
+              >
+                <Video className="w-4 h-4 shrink-0" />
+                <span>Class Recordings &amp; Revision</span>
               </button>
 
               <button
@@ -1392,6 +1493,7 @@ export default function DashboardPage() {
                       <th className="py-2.5">Teacher</th>
                       <th className="py-2.5">Attended Duration</th>
                       <th className="py-2.5">Homework Note</th>
+                      <th className="py-2.5 text-right pr-2">Recording</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -1415,6 +1517,19 @@ export default function DashboardPage() {
                         <td className="py-3 text-xs text-slate-500 italic max-w-xs truncate">
                           {log.homeworkAssigned}
                         </td>
+                        <td className="py-3 text-right pr-2">
+                          {log.recordingUrl ? (
+                            <button
+                              onClick={() => setSelectedRecordingSession(log)}
+                              className="px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold inline-flex items-center gap-1.5 transition-colors border border-indigo-200 shadow-sm"
+                            >
+                              <Play className="w-3.5 h-3.5 fill-indigo-600 text-indigo-600" />
+                              <span>Watch</span>
+                            </button>
+                          ) : (
+                            <span className="text-[11px] text-slate-400 font-medium">No video</span>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -1422,6 +1537,162 @@ export default function DashboardPage() {
               </div>
             </div>
 
+            )}
+
+            {/* Tab: Class Recordings & Revision Vault */}
+            {activeTab === 'RECORDINGS' && (
+              <div className="space-y-6 animate-fadeIn">
+                <div className="bg-white p-6 sm:p-7 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
+                        <Video className="w-4 h-4" />
+                      </div>
+                      <h3 className="text-xl font-bold text-slate-900 tracking-tight">
+                        Class Recordings &amp; Revision Vault
+                      </h3>
+                    </div>
+                    <p className="text-xs text-slate-500 max-w-xl">
+                      Replay 1-on-1 classes, review teacher explanations, and reinforce key concepts for tests and exams.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold px-3 py-1.5 rounded-xl bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center gap-1.5">
+                      <Video className="w-3.5 h-3.5" />
+                      <span>{sessions.filter(s => !!s.recordingUrl).length + classLogs.filter(l => !!l.recordingUrl && !sessions.some(s => s.id === l.sessionId && s.recordingUrl === l.recordingUrl)).length} Video Revisions</span>
+                    </span>
+                  </div>
+                </div>
+
+                {/* Filter and Search Bar */}
+                <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
+                    {['ALL', 'Mathematics', 'Physics', 'Chemistry', 'Biology'].map(sub => (
+                      <button
+                        key={sub}
+                        onClick={() => setRecordingSubjectFilter(sub)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 ${
+                          recordingSubjectFilter === sub
+                            ? 'bg-indigo-600 text-white shadow-sm'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        }`}
+                      >
+                        {sub === 'ALL' ? 'All Subjects' : sub}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="relative w-full sm:w-64">
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      placeholder="Search topics or concepts..."
+                      value={recordingSearch}
+                      onChange={(e) => setRecordingSearch(e.target.value)}
+                      className="w-full pl-8 pr-3 py-1.5 rounded-xl border border-slate-200 text-xs bg-slate-50 focus:bg-white focus:border-indigo-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Grid of Recordings */}
+                {(() => {
+                  const allRecorded = [
+                    ...sessions.filter(s => !!s.recordingUrl),
+                    ...classLogs
+                      .filter(l => !!l.recordingUrl && !sessions.some(s => s.id === l.sessionId && !!s.recordingUrl))
+                      .map(l => ({
+                        id: l.sessionId || l.id,
+                        subject: l.subject,
+                        topic: l.topicsCovered,
+                        teacherName: l.teacherName,
+                        date: l.date,
+                        durationHours: l.durationHours || 1.25,
+                        recordingUrl: l.recordingUrl,
+                        homeworkNote: l.homeworkAssigned
+                      }))
+                  ].filter(item => {
+                    const matchesSub = recordingSubjectFilter === 'ALL' || (item.subject || '').toLowerCase().includes(recordingSubjectFilter.toLowerCase());
+                    const term = recordingSearch.toLowerCase().trim();
+                    const matchesSearch = !term || (item.topic || '').toLowerCase().includes(term) || (item.subject || '').toLowerCase().includes(term) || (item.teacherName || '').toLowerCase().includes(term);
+                    return matchesSub && matchesSearch;
+                  });
+
+                  if (allRecorded.length === 0) {
+                    return (
+                      <div className="p-12 text-center bg-white rounded-2xl border border-slate-200/80 shadow-sm space-y-3">
+                        <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto">
+                          <Video className="w-6 h-6 opacity-60" />
+                        </div>
+                        <h4 className="font-bold text-slate-800 text-base">No Class Recordings Found</h4>
+                        <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                          {recordingSearch ? `No recordings match "${recordingSearch}". Try another keyword.` : 'Completed class recordings will appear here once your teacher links them.'}
+                        </p>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                      {allRecorded.map((rec) => {
+                        const embedInfo = getEmbeddableVideoUrl(rec.recordingUrl);
+                        return (
+                          <div 
+                            key={rec.id}
+                            className="bg-white rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-col group"
+                          >
+                            <div 
+                              onClick={() => setSelectedRecordingSession(rec)}
+                              className="h-40 bg-gradient-to-br from-[#0c2340] via-[#1a365d] to-indigo-950 p-4 flex flex-col justify-between relative cursor-pointer group-hover:brightness-105 transition-all"
+                            >
+                              <div className="flex items-center justify-between z-10">
+                                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-white/20 text-white backdrop-blur-sm border border-white/10">
+                                  {rec.subject}
+                                </span>
+                                <span className="text-[10px] font-semibold text-slate-300 bg-black/30 px-2 py-0.5 rounded-full backdrop-blur-sm">
+                                  {embedInfo?.type === 'YOUTUBE' ? 'YouTube' : embedInfo?.type === 'DRIVE' ? 'Google Drive' : embedInfo?.type === 'LOOM' ? 'Loom' : 'Class Video'}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center justify-center z-10">
+                                <div className="w-12 h-12 rounded-full bg-white/90 text-indigo-900 flex items-center justify-center shadow-xl group-hover:scale-110 transition-transform">
+                                  <Play className="w-5 h-5 fill-indigo-900 ml-0.5" />
+                                </div>
+                              </div>
+
+                              <div className="flex items-center justify-between text-[11px] text-slate-300 z-10 font-medium">
+                                <span>{rec.date}</span>
+                                <span>{rec.durationHours ? `${rec.durationHours} hrs` : 'Completed Class'}</span>
+                              </div>
+
+                              <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:16px_16px]" />
+                            </div>
+
+                            <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
+                              <div>
+                                <h4 className="font-bold text-sm text-slate-900 group-hover:text-indigo-600 transition-colors line-clamp-2">
+                                  {rec.topic || `${rec.subject} 1-on-1 Class Session`}
+                                </h4>
+                                <p className="text-xs text-slate-500 mt-1">
+                                  Tutor: <strong className="text-slate-700">{rec.teacherName}</strong>
+                                </p>
+                              </div>
+
+                              <button
+                                onClick={() => setSelectedRecordingSession(rec)}
+                                className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-all"
+                              >
+                                <Play className="w-3.5 h-3.5 fill-white" />
+                                <span>Watch Class Recording</span>
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+              </div>
             )}
 
             {/* Tab 3: Monthly Fee Bill — Full-Page UI */}
@@ -2138,9 +2409,10 @@ export default function DashboardPage() {
                         )}
                       </div>
 
-                      {s.status === 'SCHEDULED' && (
+                      {s.status === 'SCHEDULED' ? (
                         <div className="flex items-center gap-2">
                           <button 
+                            type="button"
                             onClick={() => handleCancelSession(s.id)}
                             className="px-3 py-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 text-xs font-bold transition-colors"
                           >
@@ -2154,6 +2426,27 @@ export default function DashboardPage() {
                           >
                             Start Class
                           </a>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          {s.recordingUrl && (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedRecordingSession(s)}
+                              className="px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold transition-colors flex items-center gap-1.5"
+                            >
+                              <Play className="w-3.5 h-3.5 fill-indigo-600 text-indigo-600" />
+                              <span>Play</span>
+                            </button>
+                          )}
+                          <button 
+                            type="button"
+                            onClick={() => handleOpenEditRecording(s)}
+                            className="px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition-colors flex items-center gap-1.5"
+                          >
+                            <Video className="w-3.5 h-3.5 text-indigo-600" />
+                            <span>{s.recordingUrl ? 'Edit Recording' : 'Attach Recording'}</span>
+                          </button>
                         </div>
                       )}
                     </div>
@@ -2343,6 +2636,20 @@ export default function DashboardPage() {
                       placeholder="e.g. Solve 5 practice questions in notebook"
                       className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm bg-white"
                     />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 block mb-1">Class Recording Link (Optional)</label>
+                    <input 
+                      type="url" 
+                      value={logRecordingUrl}
+                      onChange={(e) => setLogRecordingUrl(e.target.value)}
+                      placeholder="e.g. Google Drive, YouTube Unlisted, Zoom cloud link, or MP4"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm bg-white"
+                    />
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      Paste a shareable link (Google Drive, YouTube, Zoom, or Loom). Students can replay this class in their revision vault.
+                    </p>
                   </div>
 
                   {logSubmitError && (
@@ -4123,6 +4430,260 @@ export default function DashboardPage() {
               </div>
 
             </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* 🎬 Theater-Mode Class Recording Player Modal */}
+      {selectedRecordingSession && (
+        <div 
+          className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 animate-fadeIn"
+          onClick={() => setSelectedRecordingSession(null)}
+        >
+          <div 
+            className="bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl max-w-4xl w-full overflow-hidden flex flex-col max-h-[92vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800 bg-slate-950/50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
+                  <Play className="w-5 h-5 fill-indigo-400" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                      {selectedRecordingSession.subject}
+                    </span>
+                    <span className="text-xs text-slate-400">
+                      {selectedRecordingSession.date} &bull; {selectedRecordingSession.durationHours || '1.0'} hrs
+                    </span>
+                  </div>
+                  <h3 className="font-bold text-base text-white mt-0.5">
+                    {selectedRecordingSession.studentName ? `${selectedRecordingSession.studentName} - ` : ''}{selectedRecordingSession.subject} Revision Class
+                  </h3>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {selectedRecordingSession.recordingUrl && (
+                  <a
+                    href={selectedRecordingSession.recordingUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold transition-colors"
+                  >
+                    <span>Open in Source Tab</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setSelectedRecordingSession(null)}
+                  className="w-9 h-9 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors"
+                  aria-label="Close Player"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Video Player Box (16:9 Aspect Ratio) */}
+            <div className="relative w-full bg-black aspect-video flex items-center justify-center overflow-hidden">
+              {(() => {
+                const embed = getEmbeddableVideoUrl(selectedRecordingSession.recordingUrl);
+                if (!embed) {
+                  return (
+                    <div className="text-center p-6 text-slate-400">
+                      <AlertCircle className="w-10 h-10 mx-auto text-amber-400 mb-2" />
+                      <p className="text-sm font-semibold">No recording URL available for this class.</p>
+                    </div>
+                  );
+                }
+
+                if (embed.type === 'DIRECT_VIDEO') {
+                  return (
+                    <video
+                      controls
+                      autoPlay
+                      className="w-full h-full object-contain"
+                      src={embed.src}
+                    >
+                      Your browser does not support the video tag.
+                    </video>
+                  );
+                }
+
+                if (embed.type === 'YOUTUBE' || embed.type === 'DRIVE' || embed.type === 'LOOM') {
+                  return (
+                    <iframe
+                      src={embed.src}
+                      title="Class Recording Player"
+                      className="w-full h-full border-0"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                    />
+                  );
+                }
+
+                // Fallback generic link
+                return (
+                  <div className="text-center p-8 text-slate-300 space-y-3">
+                    <Video className="w-14 h-14 mx-auto text-indigo-400 stroke-1" />
+                    <div>
+                      <h4 className="font-bold text-white text-base">External Class Recording</h4>
+                      <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
+                        This session recording is hosted on an external service (e.g. Zoom cloud or private meeting drive).
+                      </p>
+                    </div>
+                    <a
+                      href={embed.src}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md transition-all"
+                    >
+                      <span>Watch Recording</span>
+                      <ExternalLink className="w-4 h-4" />
+                    </a>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Lesson Context Details */}
+            <div className="p-5 bg-slate-900/90 border-t border-slate-800 space-y-3 overflow-y-auto">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="p-3.5 rounded-2xl bg-slate-950/60 border border-slate-800">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-400 block mb-1">
+                    Topics & Concepts Covered
+                  </span>
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    {selectedRecordingSession.topicsCovered || 'Detailed chapter revision, solved examples, and interactive problem solving.'}
+                  </p>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-slate-950/60 border border-slate-800">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 block mb-1">
+                    Homework & Revision Practice
+                  </span>
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    {selectedRecordingSession.homeworkAssigned || 'Review class notes and practice notebook problems assigned by teacher.'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between text-xs text-slate-400 pt-1">
+                <span>Teacher: <strong className="text-slate-200">{selectedRecordingSession.teacherName || 'Academy Faculty'}</strong></span>
+                <span>Session ID: <code className="text-[11px] font-mono text-slate-500">{selectedRecordingSession.id}</code></span>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* 📹 Attach / Edit Class Recording Modal */}
+      {isEditRecordingModalOpen && editingSessionForRecording && (
+        <div 
+          className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn"
+          onClick={() => setIsEditRecordingModalOpen(false)}
+        >
+          <div 
+            className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-lg w-full p-6 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-600">
+                  <Video className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-slate-900">
+                    {editingSessionForRecording.recordingUrl ? 'Edit Class Recording' : 'Attach Class Recording'}
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    {editingSessionForRecording.studentName} &bull; {editingSessionForRecording.subject} ({editingSessionForRecording.date})
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsEditRecordingModalOpen(false)}
+                className="w-8 h-8 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveRecordingUrl} className="space-y-4">
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">
+                  Class Video Recording URL
+                </label>
+                <input
+                  type="url"
+                  value={editRecordingInput}
+                  onChange={(e) => setEditRecordingInput(e.target.value)}
+                  placeholder="https://drive.google.com/... or https://youtube.com/..."
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-mono bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Supports Google Drive, YouTube Unlisted, Zoom Cloud recordings, Loom, or direct MP4 files.
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-indigo-50/70 border border-indigo-100 text-[11px] text-indigo-900 space-y-1">
+                <span className="font-bold flex items-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-indigo-600" />
+                  Revision Vault Integration
+                </span>
+                <p className="text-indigo-800/80 leading-relaxed">
+                  Once saved, this video will immediately be available in the student's Class Recordings & Revision Vault for continuous self-study.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-between pt-2">
+                {editingSessionForRecording.recordingUrl ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditRecordingInput('');
+                    }}
+                    className="text-xs font-semibold text-red-600 hover:underline"
+                  >
+                    Clear Link
+                  </button>
+                ) : <div />}
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsEditRecordingModalOpen(false)}
+                    className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 font-bold text-xs transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSavingRecording}
+                    className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-sm transition-all flex items-center gap-1.5"
+                  >
+                    {isSavingRecording ? (
+                      <>
+                        <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        <span>Saving...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Save Recording</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </form>
 
           </div>
         </div>

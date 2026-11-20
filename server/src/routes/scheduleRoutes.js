@@ -8,7 +8,8 @@ const {
   getEnrolledStudents,
   createSession, 
   rescheduleSession, 
-  cancelSession 
+  cancelSession,
+  updateSessionRecording
 } = require('../controllers/scheduleController');
 const { verifyToken, requireRole } = require('../middleware/authMiddleware');
 
@@ -25,6 +26,7 @@ router.get('/sessions', verifyToken, getSessions);
 router.post('/sessions', verifyToken, requireRole('ADMIN', 'TEACHER'), createSession);
 router.put('/sessions/:id', verifyToken, requireRole('ADMIN', 'TEACHER'), rescheduleSession);
 router.patch('/sessions/:id/cancel', verifyToken, requireRole('ADMIN', 'TEACHER'), cancelSession);
+router.patch('/sessions/:id/recording', verifyToken, requireRole('ADMIN', 'TEACHER'), updateSessionRecording);
 
 module.exports = router;
 
