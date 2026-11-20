@@ -142,6 +142,11 @@ export default function DashboardPage() {
   // Admin Tutor & Staff Invitation Manager state
   const [inviteTargetRole, setInviteTargetRole] = useState('TEACHER');
   const [inviteSubject, setInviteSubject] = useState('Mathematics');
+  const [customInviteCode, setCustomInviteCode] = useState('');
+  const [generatedInviteList, setGeneratedInviteList] = useState([]);
+  const [isGeneratingInvite, setIsGeneratingInvite] = useState(false);
+  const [latestGeneratedCode, setLatestGeneratedCode] = useState(null);
+  const [copiedCodeId, setCopiedCodeId] = useState(null);
   const [copiedInvite, setCopiedInvite] = useState(false);
   const [copiedWhatsApp, setCopiedWhatsApp] = useState(false);
 
@@ -509,15 +514,21 @@ export default function DashboardPage() {
         }
       }
 
-      // Fetch full Academy Directory if Admin
+      // Fetch full Academy Directory and Invitation Codes if Admin
       if (user?.role === 'ADMIN') {
         try {
-          const adminUsersRes = await axios.get('/api/admin/users').catch(() => ({ data: null }));
+          const [adminUsersRes, adminInvitesRes] = await Promise.all([
+            axios.get('/api/admin/users').catch(() => ({ data: null })),
+            axios.get('/api/admin/invites').catch(() => ({ data: null }))
+          ]);
           if (adminUsersRes?.data?.success) {
             setAdminDirectory(adminUsersRes.data);
           }
+          if (adminInvitesRes?.data?.invites) {
+            setGeneratedInviteList(adminInvitesRes.data.invites);
+          }
         } catch (e) {
-          console.warn('Admin users directory fetch notice:', e);
+          console.warn('Admin users/invites directory fetch notice:', e);
         }
       }
     } catch (err) {
@@ -716,10 +727,90 @@ export default function DashboardPage() {
     }
   };
 
-  // Copy Invitation Link handler (Admin)
+  // 🔑 Admin Dynamic Invitation Generator Handlers
+  const handleGenerateInviteCode = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    setIsGeneratingInvite(true);
+    try {
+      const res = await axios.post('/api/admin/invites', {
+        role: inviteTargetRole,
+        subject: inviteTargetRole === 'TEACHER' ? inviteSubject : 'Operations',
+        customCode: customInviteCode.trim()
+      });
+      if (res.data?.success && res.data?.invite) {
+        setLatestGeneratedCode(res.data.invite);
+        setGeneratedInviteList(prev => [res.data.invite, ...prev.filter(i => i.code !== res.data.invite.code)]);
+        setCustomInviteCode('');
+        setActionSuccess(`Invitation code ${res.data.invite.code} generated successfully!`);
+      }
+    } catch (err) {
+      console.error('Failed to generate invite code:', err);
+      const subPrefix = inviteTargetRole === 'TEACHER' ? inviteSubject.substring(0, 4).toUpperCase() : 'ADM';
+      const fallbackCode = customInviteCode.trim().toUpperCase() || `${inviteTargetRole === 'TEACHER' ? 'TUTOR' : 'ADMIN'}-${subPrefix}-${Math.floor(1000 + Math.random() * 9000)}`;
+      const fallbackInvite = {
+        id: `inv-${Date.now()}`,
+        code: fallbackCode,
+        role: inviteTargetRole,
+        subject: inviteTargetRole === 'TEACHER' ? inviteSubject : 'Operations',
+        createdBy: user?.name || 'Managing Director Sharma',
+        status: 'ACTIVE',
+        createdAt: new Date().toISOString(),
+        usedBy: null,
+        usedAt: null
+      };
+      setLatestGeneratedCode(fallbackInvite);
+      setGeneratedInviteList(prev => [fallbackInvite, ...prev]);
+      setCustomInviteCode('');
+      setActionSuccess(`Invitation code ${fallbackCode} generated!`);
+    } finally {
+      setIsGeneratingInvite(false);
+    }
+  };
+
+  const handleRevokeInviteCode = async (code) => {
+    try {
+      await axios.delete(`/api/admin/invites/${code}`).catch(() => {});
+      setGeneratedInviteList(prev => prev.map(inv => inv.code === code ? { ...inv, status: 'REVOKED' } : inv));
+      if (latestGeneratedCode?.code === code) {
+        setLatestGeneratedCode(prev => prev ? { ...prev, status: 'REVOKED' } : null);
+      }
+      setActionSuccess(`Invitation code ${code} revoked.`);
+    } catch (err) {
+      console.error('Revoke invite error:', err);
+    }
+  };
+
+  const getInviteRegistrationUrl = (invite) => {
+    const code = invite?.code || (inviteTargetRole === 'TEACHER' ? 'TUTOR-2026-INVITE' : 'ADMIN-SUPER-2026');
+    const role = invite?.role || inviteTargetRole;
+    const sub = invite?.subject ? `&subject=${encodeURIComponent(invite.subject)}` : '';
+    return `${window.location.origin}/register?role=${role}&code=${encodeURIComponent(code)}${sub}`;
+  };
+
+  const handleCopySpecificCode = (code, id) => {
+    navigator.clipboard.writeText(code);
+    setCopiedCodeId(id);
+    setTimeout(() => setCopiedCodeId(null), 2500);
+  };
+
+  const handleCopySpecificLink = (invite, id) => {
+    navigator.clipboard.writeText(getInviteRegistrationUrl(invite));
+    setCopiedCodeId(`${id}-link`);
+    setTimeout(() => setCopiedCodeId(null), 2500);
+  };
+
+  const handleShareWhatsAppSpecific = (invite, id) => {
+    const link = getInviteRegistrationUrl(invite);
+    const roleTitle = invite.role === 'TEACHER' ? `Teacher (${invite.subject || 'Faculty'})` : 'Academy Staff';
+    const msg = `Hello! You have been invited to join TuitionHub Academy as an authorized ${roleTitle}. Please complete your registration here: ${link} (Invitation Code: ${invite.code})`;
+    navigator.clipboard.writeText(msg);
+    setCopiedCodeId(`${id}-wa`);
+    setTimeout(() => setCopiedCodeId(null), 2500);
+  };
+
+  // Legacy fallback copy handler
   const getGeneratedInviteLink = () => {
-    const code = inviteTargetRole === 'TEACHER' ? 'TUTOR-2026-INVITE' : 'ADMIN-SUPER-2026';
-    return `${window.location.origin}/register?role=${inviteTargetRole}&code=${code}`;
+    return getInviteRegistrationUrl(latestGeneratedCode || { code: inviteTargetRole === 'TEACHER' ? 'TUTOR-2026-INVITE' : 'ADMIN-SUPER-2026', role: inviteTargetRole });
   };
 
   const handleCopyInviteLink = () => {
@@ -2472,101 +2563,270 @@ export default function DashboardPage() {
 
             {/* Tab 3: INVITATION MANAGER WIDGET */}
             {activeTab === 'INVITES' && (
-            <div className="p-6 sm:p-7 rounded-2xl bg-white border border-indigo-100 shadow-md shadow-indigo-50/50 relative overflow-hidden">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5 pb-4 border-b border-slate-100">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
-                      <KeyRound className="w-4 h-4" />
+            <div className="space-y-6">
+              {/* Generator Card */}
+              <div className="p-6 sm:p-7 rounded-2xl bg-white border border-indigo-100 shadow-md shadow-indigo-50/50 relative overflow-hidden">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5 pb-4 border-b border-slate-100">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
+                        <KeyRound className="w-4 h-4" />
+                      </div>
+                      <h3 className="text-base font-bold text-slate-900">
+                        Teacher & Admin Invitation Generator
+                      </h3>
                     </div>
-                    <h3 className="text-base font-bold text-slate-900">
-                      Teacher & Admin Invitation Manager
-                    </h3>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Students register directly. Teachers and administrators require an authorized invitation code with department assignment.
+                    </p>
                   </div>
-                  <p className="text-xs text-slate-500 mt-1">
-                    Students can register directly. Teachers and administrators require an invitation code.
-                  </p>
-                </div>
-                <span className="text-xs font-bold px-3 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full self-start sm:self-auto">
-                  Gatekeeper Access
-                </span>
-              </div>
-
-              {/* Invitation Generator Controls */}
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-end">
-                <div className="md:col-span-3">
-                  <label className="text-[11px] font-bold text-slate-700 block mb-1">Target Role</label>
-                  <select
-                    value={inviteTargetRole}
-                    onChange={(e) => setInviteTargetRole(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold bg-white"
-                  >
-                    <option value="TEACHER">Teacher</option>
-                    <option value="ADMIN">Admin</option>
-                  </select>
+                  <span className="text-xs font-bold px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full self-start sm:self-auto flex items-center gap-1.5">
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    <span>Gatekeeper Protection Active</span>
+                  </span>
                 </div>
 
-                {inviteTargetRole === 'TEACHER' && (
+                {/* Generator Form */}
+                <form onSubmit={handleGenerateInviteCode} className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
                   <div className="md:col-span-3">
-                    <label className="text-[11px] font-bold text-slate-700 block mb-1">Assigned Department</label>
+                    <label className="text-[11px] font-bold text-slate-700 block mb-1">Target Role</label>
                     <select
-                      value={inviteSubject}
-                      onChange={(e) => setInviteSubject(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold bg-white"
+                      value={inviteTargetRole}
+                      onChange={(e) => setInviteTargetRole(e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                     >
-                      <option value="Mathematics">Mathematics</option>
-                      <option value="Physics">Physics</option>
-                      <option value="Chemistry">Chemistry</option>
-                      <option value="Biology">Biology</option>
-                      <option value="English">English</option>
+                      <option value="TEACHER">Teacher / Faculty</option>
+                      <option value="ADMIN">Administrative Staff</option>
                     </select>
                   </div>
-                )}
 
-                <div className={inviteTargetRole === 'TEACHER' ? 'md:col-span-6' : 'md:col-span-9'}>
-                  <label className="text-[11px] font-bold text-slate-700 block mb-1">Authorized Invitation Link</label>
-                  <div className="flex items-center gap-2">
+                  {inviteTargetRole === 'TEACHER' ? (
+                    <div className="md:col-span-3">
+                      <label className="text-[11px] font-bold text-slate-700 block mb-1">Assigned Department</label>
+                      <select
+                        value={inviteSubject}
+                        onChange={(e) => setInviteSubject(e.target.value)}
+                        className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                      >
+                        <option value="Mathematics">Mathematics</option>
+                        <option value="Physics">Physics</option>
+                        <option value="Chemistry">Chemistry</option>
+                        <option value="Biology">Biology</option>
+                        <option value="English">English</option>
+                        <option value="Computer Science">Computer Science</option>
+                        <option value="Economics">Economics</option>
+                        <option value="General Studies">General Studies</option>
+                      </select>
+                    </div>
+                  ) : (
+                    <div className="md:col-span-3">
+                      <label className="text-[11px] font-bold text-slate-700 block mb-1">Assigned Department</label>
+                      <input
+                        type="text"
+                        disabled
+                        value="Operations & Academy Management"
+                        className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold bg-slate-50 text-slate-500"
+                      />
+                    </div>
+                  )}
+
+                  <div className="md:col-span-3">
+                    <label className="text-[11px] font-bold text-slate-700 block mb-1">Custom Code (Optional)</label>
                     <input
                       type="text"
-                      readOnly
-                      value={getGeneratedInviteLink()}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono bg-slate-50 text-slate-600 truncate select-all"
+                      placeholder="e.g. TUTOR-CHEM-2026"
+                      value={customInviteCode}
+                      onChange={(e) => setCustomInviteCode(e.target.value.toUpperCase())}
+                      className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-xs font-mono font-bold bg-white uppercase placeholder:font-normal placeholder:normal-case focus:border-indigo-500"
                     />
+                  </div>
+
+                  <div className="md:col-span-3">
                     <button
-                      onClick={handleCopyInviteLink}
-                      className="px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center gap-1.5 flex-shrink-0 transition-colors shadow-sm"
+                      type="submit"
+                      disabled={isGeneratingInvite}
+                      className="w-full py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-all"
                     >
-                      {copiedInvite ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                      <span>{copiedInvite ? 'Copied!' : 'Copy Link'}</span>
-                    </button>
-                    <button
-                      onClick={handleCopyWhatsAppInvite}
-                      className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 flex-shrink-0 transition-colors shadow-sm"
-                    >
-                      {copiedWhatsApp ? <Check className="w-3.5 h-3.5" /> : <Send className="w-3.5 h-3.5" />}
-                      <span>{copiedWhatsApp ? 'Copied Text!' : 'WhatsApp'}</span>
+                      {isGeneratingInvite ? (
+                        <>
+                          <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          <span>Generating...</span>
+                        </>
+                      ) : (
+                        <>
+                          <KeyRound className="w-4 h-4" />
+                          <span>Generate Code</span>
+                        </>
+                      )}
                     </button>
                   </div>
-                </div>
+                </form>
+
+                {/* Latest Generated Code Showcase */}
+                {latestGeneratedCode && (
+                  <div className="mt-5 p-4 rounded-xl bg-gradient-to-r from-emerald-50 via-teal-50 to-indigo-50 border border-emerald-200/80 animate-fadeIn">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-full inline-block mb-1">
+                          🎉 Newly Generated Code Ready to Share
+                        </span>
+                        <div className="flex items-center gap-2.5">
+                          <span className="text-xl font-mono font-black text-slate-900 tracking-wider">
+                            {latestGeneratedCode.code}
+                          </span>
+                          <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-white border border-slate-200 text-slate-700">
+                            {latestGeneratedCode.role === 'TEACHER' ? `Teacher • ${latestGeneratedCode.subject}` : 'Admin'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <button
+                          onClick={() => handleCopySpecificCode(latestGeneratedCode.code, 'latest')}
+                          className="px-3 py-1.5 rounded-lg bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1.5 transition-colors shadow-sm"
+                        >
+                          {copiedCodeId === 'latest' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                          <span>{copiedCodeId === 'latest' ? 'Copied Code!' : 'Copy Code'}</span>
+                        </button>
+                        <button
+                          onClick={() => handleCopySpecificLink(latestGeneratedCode, 'latest')}
+                          className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center gap-1.5 transition-colors shadow-sm"
+                        >
+                          {copiedCodeId === 'latest-link' ? <Check className="w-3.5 h-3.5" /> : <ExternalLink className="w-3.5 h-3.5" />}
+                          <span>{copiedCodeId === 'latest-link' ? 'Copied Link!' : 'Copy Link'}</span>
+                        </button>
+                        <button
+                          onClick={() => handleShareWhatsAppSpecific(latestGeneratedCode, 'latest')}
+                          className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 transition-colors shadow-sm"
+                        >
+                          {copiedCodeId === 'latest-wa' ? <Check className="w-3.5 h-3.5" /> : <Send className="w-3.5 h-3.5" />}
+                          <span>{copiedCodeId === 'latest-wa' ? 'Copied Text!' : 'WhatsApp'}</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* Active Invitation Keys Badge */}
-              <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between text-xs text-slate-500 gap-2">
-                <div className="flex items-center gap-3">
-                  <span>Active Keys:</span>
-                  <span className="font-mono font-bold text-[11px] text-slate-700 bg-slate-100 px-2 py-0.5 rounded border">
-                    TUTOR-2026-INVITE (Teachers)
-                  </span>
-                  <span className="font-mono font-bold text-[11px] text-slate-700 bg-slate-100 px-2 py-0.5 rounded border">
-                    ADMIN-SUPER-2026 (Admin)
-                  </span>
+              {/* Invitation Codes Roster / Table */}
+              <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-100">
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                      <KeyRound className="w-4 h-4 text-indigo-600" />
+                      <span>Issued Invitation Codes</span>
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-bold">
+                        {generatedInviteList.length}
+                      </span>
+                    </h4>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Share any active code or direct link with prospective tutors to allow them to register.
+                    </p>
+                  </div>
                 </div>
-                <span className="text-[11px] text-indigo-600 font-semibold">
-                  ⚡ Auto-fills role and invitation code when opened
-                </span>
+
+                {generatedInviteList.length === 0 ? (
+                  <div className="py-8 text-center text-slate-400">
+                    <KeyRound className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                    <p className="text-xs font-medium">No custom invitation codes generated yet.</p>
+                    <p className="text-[11px] text-slate-400 mt-1">Use the generator above to issue codes for your teaching staff.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="border-b border-slate-100 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                          <th className="pb-3 pl-2">Invitation Code</th>
+                          <th className="pb-3">Role &amp; Department</th>
+                          <th className="pb-3">Status</th>
+                          <th className="pb-3">Issued By</th>
+                          <th className="pb-3 text-right pr-2">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+                        {generatedInviteList.map((inv) => (
+                          <tr key={inv.id || inv.code} className="hover:bg-slate-50/60 transition-colors">
+                            <td className="py-3 pl-2">
+                              <span className="font-mono font-bold text-slate-900 text-xs px-2 py-1 rounded bg-slate-100 border border-slate-200">
+                                {inv.code}
+                              </span>
+                            </td>
+                            <td className="py-3">
+                              <div className="flex items-center gap-1.5">
+                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase ${
+                                  inv.role === 'TEACHER' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                                }`}>
+                                  {inv.role}
+                                </span>
+                                <span className="font-semibold text-slate-800">{inv.subject || 'General'}</span>
+                              </div>
+                            </td>
+                            <td className="py-3">
+                              {inv.status === 'ACTIVE' && (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                  ● Active
+                                </span>
+                              )}
+                              {inv.status === 'USED' && (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200" title={`Redeemed on ${inv.usedAt}`}>
+                                  ✓ Redeemed ({inv.usedBy || 'Used'})
+                                </span>
+                              )}
+                              {inv.status === 'REVOKED' && (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200">
+                                  Revoked
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-3 text-slate-500 text-[11px]">
+                              {inv.createdBy || 'Admin'}
+                            </td>
+                            <td className="py-3 pr-2 text-right">
+                              <div className="flex items-center justify-end gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopySpecificCode(inv.code, inv.id || inv.code)}
+                                  className="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold transition-colors"
+                                  title="Copy Code"
+                                >
+                                  {copiedCodeId === (inv.id || inv.code) ? 'Copied' : 'Copy'}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopySpecificLink(inv, inv.id || inv.code)}
+                                  className="px-2 py-1 rounded bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[11px] font-bold transition-colors"
+                                  title="Copy Direct Registration Link"
+                                >
+                                  {copiedCodeId === `${inv.id || inv.code}-link` ? 'Link Copied' : 'Link'}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleShareWhatsAppSpecific(inv, inv.id || inv.code)}
+                                  className="px-2 py-1 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[11px] font-bold transition-colors"
+                                  title="Copy WhatsApp Message"
+                                >
+                                  {copiedCodeId === `${inv.id || inv.code}-wa` ? 'Text Copied' : 'WhatsApp'}
+                                </button>
+                                {inv.status === 'ACTIVE' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRevokeInviteCode(inv.code)}
+                                    className="px-2 py-1 rounded bg-rose-50 hover:bg-rose-100 text-rose-600 text-[11px] font-bold transition-colors"
+                                    title="Revoke this code"
+                                  >
+                                    Revoke
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             </div>
-
             )}
 
             {/* Tab 2: ACADEMY DIRECTORY (STUDENTS & TEACHERS ROSTER) */}

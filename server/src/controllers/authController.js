@@ -2,10 +2,11 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { JWT_SECRET } = require('../middleware/authMiddleware');
 const prisma = require('../prisma');
+const inviteService = require('../services/inviteService');
 
 // Valid academy invitation codes for controlled staff onboarding
-const VALID_TEACHER_INVITES = ['TUTOR-2026-INVITE', 'ACADEMY-TUTOR-2026', 'TUTOR-DEMO'];
-const VALID_ADMIN_INVITES = ['ADMIN-SUPER-2026', 'DIRECTOR-2026', 'ADMIN-DEMO'];
+const VALID_TEACHER_INVITES = inviteService.STATIC_TEACHER_CODES;
+const VALID_ADMIN_INVITES = inviteService.STATIC_ADMIN_CODES;
 
 // Strict Email Validation (Standard RFC 5322 compliant)
 const isValidEmail = (email) => {
@@ -129,17 +130,26 @@ const register = async (req, res) => {
 
   // 3. Role-based onboarding security checks (Invite Code Gatekeeper)
   const normalizedRole = role.toUpperCase();
-  if (normalizedRole === 'TEACHER') {
-    if (!inviteCode || !VALID_TEACHER_INVITES.includes(inviteCode.trim().toUpperCase())) {
+  let assignedSubjectFromInvite = null;
+
+  if (normalizedRole === 'TEACHER' || normalizedRole === 'ADMIN') {
+    const inviteResult = inviteService.validateAndRedeemInvite(
+      inviteCode,
+      normalizedRole,
+      cleanIdentifier,
+      name ? name.trim() : null
+    );
+
+    if (!inviteResult.valid) {
       return res.status(403).json({ 
-        error: 'Teacher registration is strictly by authorized invitation only. Please enter a valid Tutor Invitation Code issued by the Academy Director.' 
+        error: inviteResult.error || (normalizedRole === 'TEACHER' 
+          ? 'Teacher registration is strictly by authorized invitation only. Please enter a valid Tutor Invitation Code issued by the Academy Director.' 
+          : 'Administrative registration is strictly restricted. Please provide a valid Master Academy Authorization Key.')
       });
     }
-  } else if (normalizedRole === 'ADMIN') {
-    if (!inviteCode || !VALID_ADMIN_INVITES.includes(inviteCode.trim().toUpperCase())) {
-      return res.status(403).json({ 
-        error: 'Administrative registration is strictly restricted. Please provide a valid Master Academy Authorization Key.' 
-      });
+
+    if (inviteResult.subject) {
+      assignedSubjectFromInvite = inviteResult.subject;
     }
   }
 
@@ -205,7 +215,7 @@ const register = async (req, res) => {
         ...(normalizedRole === 'TEACHER' ? {
           teacher: {
             create: {
-              subject: subject ? subject.trim() : 'General Studies',
+              subject: subject ? subject.trim() : (assignedSubjectFromInvite || 'General Studies'),
               qualification: qualification ? qualification.trim() : 'Senior Faculty',
               phone: effectivePhone,
               bio: qualification ? qualification.trim() : 'Senior Faculty',
@@ -258,7 +268,7 @@ const register = async (req, res) => {
     emailOrPhone: cleanEmail,
     role: normalizedRole,
     grade: grade || (normalizedRole === 'STUDENT' ? 'Grade 10 (Board)' : undefined),
-    subject: subject || (normalizedRole === 'TEACHER' ? 'Mathematics' : undefined),
+    subject: subject || (normalizedRole === 'TEACHER' ? (assignedSubjectFromInvite || 'Mathematics') : undefined),
     phone: effectivePhone || '',
     parentName: parentName ? parentName.trim() : '',
     parentPhone: parentPhone ? parentPhone.trim() : '',

@@ -442,9 +442,96 @@ async function runTestSuite() {
     assert(matchingSession.meetLink === 'https://meet.google.com/bio-tanvi-demo', 'Student session shows correct Google Meet link');
 
     // -------------------------------------------------------------------------
-    // 11. Automated Teardown of Temporary Test Users
+    // 11. Dynamic Admin Invite Code Generation & Teacher Registration Lifecycle
     // -------------------------------------------------------------------------
-    console.log('\n--- 11. Automated Teardown of Temporary Test Users ---');
+    console.log('\n--- 11. Dynamic Admin Invite Code Generation & Teacher Onboarding ---');
+
+    // 11.1 Admin lists initial invitation codes
+    const initialInvitesRes = await request('GET', '/admin/invites', null, adminToken);
+    assert(initialInvitesRes.status === 200, 'Admin fetches /api/admin/invites successfully (HTTP 200)');
+    assert(Array.isArray(initialInvitesRes.data.invites), 'Invites returned as an array');
+
+    // 11.2 Admin generates a unique dynamic invitation code for an Organic Chemistry Teacher
+    const createInviteRes = await request('POST', '/admin/invites', {
+      role: 'TEACHER',
+      subject: 'Organic Chemistry',
+      customCode: `TUTOR-CHEM-${Date.now().toString().slice(-4)}`
+    }, adminToken);
+    assert(createInviteRes.status === 201, 'Admin generates dynamic invite code (HTTP 201)');
+    assert(createInviteRes.data.success === true, 'Dynamic invite generation reports success');
+    const dynamicCode = createInviteRes.data.invite.code;
+    assert(!!dynamicCode, `Generated invite code is present: ${dynamicCode}`);
+    assert(createInviteRes.data.invite.status === 'ACTIVE', 'Generated invite status is ACTIVE');
+    assert(createInviteRes.data.invite.subject === 'Organic Chemistry', 'Generated invite subject is Organic Chemistry');
+
+    // 11.3 Teacher registration rejects invalid/unauthorized invite code
+    const invalidInviteRes = await request('POST', '/auth/register', {
+      name: 'Dr. Vikram Sarabhai',
+      emailOrPhone: `vikram.${Date.now()}@tuition.com`,
+      phone: '9844001122',
+      password: 'password123',
+      role: 'TEACHER',
+      inviteCode: 'INVALID-FAKE-CODE-9999'
+    });
+    assert(invalidInviteRes.status === 403, 'Teacher registration strictly rejects invalid invite code with HTTP 403');
+
+    // 11.4 Teacher successfully registers using the newly generated dynamic invite code
+    const chemTeacherEmail = `chem.faculty.${Date.now()}@tuition.com`;
+    const dynamicTeacherRes = await request('POST', '/auth/register', {
+      name: 'Dr. Vikram Sarabhai',
+      emailOrPhone: chemTeacherEmail,
+      phone: '9844001122',
+      password: 'password123',
+      role: 'TEACHER',
+      inviteCode: dynamicCode
+    });
+    assert(dynamicTeacherRes.status === 201, 'Teacher registers successfully using dynamic invite code (HTTP 201)');
+    if (dynamicTeacherRes.data?.user?.id) createdTestUserIds.push(dynamicTeacherRes.data.user.id);
+    const dynamicTeacherToken = dynamicTeacherRes.data.token;
+
+    // 11.5 Verify registered teacher's subject automatically inherits from the invite code
+    const chemTeacherProfile = await request('GET', '/auth/me', null, dynamicTeacherToken);
+    assert(chemTeacherProfile.status === 200, 'Newly registered teacher fetches profile (HTTP 200)');
+    assert(chemTeacherProfile.data.user.subject === 'Organic Chemistry', 'Teacher profile inherited subject from dynamic invite code');
+
+    // 11.6 Verify that the dynamic invite code is now marked as USED in the admin list
+    const postRegisterInvitesRes = await request('GET', '/admin/invites', null, adminToken);
+    const usedInvite = postRegisterInvitesRes.data.invites.find(i => i.code === dynamicCode);
+    assert(!!usedInvite, 'Used invite exists in admin roster');
+    assert(usedInvite.status === 'USED', 'Dynamic invite code status updated to USED after registration');
+    assert(usedInvite.usedBy === 'Dr. Vikram Sarabhai', 'Dynamic invite tracks name of redeemed teacher');
+
+    // 11.7 Verify that attempting to reuse the same redeemed one-time code fails
+    const reuseAttemptRes = await request('POST', '/auth/register', {
+      name: 'Another Teacher',
+      emailOrPhone: `another.${Date.now()}@tuition.com`,
+      phone: '9855112233',
+      password: 'password123',
+      role: 'TEACHER',
+      inviteCode: dynamicCode
+    });
+    assert(reuseAttemptRes.status === 403, 'Attempting to reuse redeemed invite code is strictly blocked (HTTP 403)');
+
+    // 11.8 Admin revokes a code and verifies revoked codes cannot be used
+    const revokeTestCode = `TUTOR-REVOKE-${Date.now().toString().slice(-4)}`;
+    await request('POST', '/admin/invites', { role: 'TEACHER', subject: 'Robotics', customCode: revokeTestCode }, adminToken);
+    const revokeRes = await request('DELETE', `/admin/invites/${revokeTestCode}`, null, adminToken);
+    assert(revokeRes.status === 200, 'Admin revokes invitation code successfully (HTTP 200)');
+
+    const revokedRegRes = await request('POST', '/auth/register', {
+      name: 'Revoked Test Tutor',
+      emailOrPhone: `revoked.${Date.now()}@tuition.com`,
+      phone: '9866223344',
+      password: 'password123',
+      role: 'TEACHER',
+      inviteCode: revokeTestCode
+    });
+    assert(revokedRegRes.status === 403, 'Registration with revoked code is strictly blocked (HTTP 403)');
+
+    // -------------------------------------------------------------------------
+    // 12. Automated Teardown of Temporary Test Users
+    // -------------------------------------------------------------------------
+    console.log('\n--- 12. Automated Teardown of Temporary Test Users ---');
     let cleanupSuccess = 0;
     for (const userId of createdTestUserIds) {
       try {
