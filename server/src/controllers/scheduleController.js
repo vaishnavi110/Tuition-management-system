@@ -65,6 +65,26 @@ let SESSIONS = [
     savedTeacherRate: 250.0,
     meetLink: 'https://meet.google.com/abc-defg-hij',
     status: 'SCHEDULED'
+  },
+  {
+    id: 'session-4',
+    teacherId: 'user-teacher-1',
+    teacherName: 'Mrs. Sunita Verma',
+    studentId: 'user-student-1',
+    studentName: 'Aryan Sharma',
+    grade: 'Grade 10 (Board)',
+    subject: 'Mathematics',
+    topic: 'Quadratic Equations & Problem Solving',
+    date: new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString().split('T')[0],
+    startTime: '17:00',
+    endTime: '18:15',
+    durationMinutes: 75,
+    durationHours: 1.25,
+    savedStudentRate: 400.0,
+    savedTeacherRate: 250.0,
+    meetLink: 'https://meet.google.com/abc-defg-hij',
+    recordingUrl: 'https://fathom.video/share/dEM0X1z9LaP',
+    status: 'COMPLETED'
   }
 ];
 
