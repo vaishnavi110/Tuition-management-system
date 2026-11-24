@@ -591,6 +591,26 @@ async function runTestSuite() {
     assert(clearRecordingRes.status === 200, 'Teacher can update or reset recording link cleanly (HTTP 200)');
     assert(clearRecordingRes.data.session.recordingUrl === demoYoutubeUrl, 'Session recording URL properly reset for ongoing student revision');
 
+    // 12.8 Fathom AI recording link attachment (#52)
+    const demoFathomUrl = 'https://fathom.video/share/dEM0X1z9LaP';
+    const fathomAttachRes = await request('PATCH', `/schedule/sessions/${targetSession.id}/recording`, {
+      recordingUrl: demoFathomUrl
+    }, teacherToken);
+    assert(fathomAttachRes.status === 200, 'Teacher attaches Fathom AI recording URL (HTTP 200)');
+    assert(fathomAttachRes.data.session.recordingUrl === demoFathomUrl, 'Fathom AI recording URL stored and verified in session');
+
+    // 12.9 Student fetches sessions and verifies Fathom AI link is accessible for revision & AI summary
+    const studentFathomVaultRes = await request('GET', '/schedule/sessions', null, studentToken);
+    assert(studentFathomVaultRes.status === 200, 'Student fetches session vault for Fathom AI replay');
+    const fathomSession = studentFathomVaultRes.data.sessions.find(s => s.id === targetSession.id);
+    assert(fathomSession && fathomSession.recordingUrl === demoFathomUrl, 'Fathom AI recording reflects in student revision vault');
+
+    // 12.10 Admin fetches sessions and can audit Fathom recording proof
+    const adminSessionsRes = await request('GET', '/schedule/sessions', null, adminToken);
+    assert(adminSessionsRes.status === 200, 'Admin fetches sessions for lecture audit');
+    const adminAuditedSession = adminSessionsRes.data.sessions.find(s => s.id === targetSession.id);
+    assert(adminAuditedSession && adminAuditedSession.recordingUrl === demoFathomUrl, 'Admin has full visibility to audit Fathom AI lecture recording');
+
     // -------------------------------------------------------------------------
     // 13. Automated Teardown of Temporary Test Users
     // -------------------------------------------------------------------------

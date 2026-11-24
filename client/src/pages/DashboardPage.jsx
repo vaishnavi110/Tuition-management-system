@@ -43,7 +43,8 @@ import {
   PhoneCall,
   MessageSquare,
   Menu,
-  Play
+  Play,
+  Sparkles
 } from 'lucide-react';
 
 export default function DashboardPage() {
@@ -668,7 +669,20 @@ export default function DashboardPage() {
     if (!url) return null;
     const clean = url.trim();
 
-    // 1. YouTube standard & short URLs
+    // 1. Fathom AI recording embed & share URLs
+    // e.g. https://fathom.video/share/{id} or https://fathom.video/embed/{id}
+    const fathomMatch = clean.match(/fathom\.video\/(?:share|embed)\/([a-zA-Z0-9_-]+)/);
+    if (fathomMatch && fathomMatch[1]) {
+      const fathomId = fathomMatch[1];
+      return {
+        type: 'FATHOM',
+        id: fathomId,
+        src: `https://fathom.video/embed/${fathomId}`,
+        shareUrl: `https://fathom.video/share/${fathomId}`
+      };
+    }
+
+    // 2. YouTube standard & short URLs
     const ytMatch = clean.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
     if (ytMatch && ytMatch[1]) {
       return {
@@ -677,7 +691,7 @@ export default function DashboardPage() {
       };
     }
 
-    // 2. Google Drive video preview URL
+    // 3. Google Drive video preview URL
     const driveMatch = clean.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/);
     if (driveMatch && driveMatch[1]) {
       return {
@@ -686,7 +700,7 @@ export default function DashboardPage() {
       };
     }
 
-    // 3. Loom video embed URL
+    // 4. Loom video embed URL
     const loomMatch = clean.match(/loom\.com\/(?:share|embed)\/([a-zA-Z0-9]+)/);
     if (loomMatch && loomMatch[1]) {
       return {
@@ -695,7 +709,7 @@ export default function DashboardPage() {
       };
     }
 
-    // 4. Direct video files (.mp4, .webm)
+    // 5. Direct video files (.mp4, .webm)
     if (clean.endsWith('.mp4') || clean.endsWith('.webm') || clean.includes('.mp4?')) {
       return {
         type: 'DIRECT_VIDEO',
@@ -703,7 +717,7 @@ export default function DashboardPage() {
       };
     }
 
-    // 5. Generic URL
+    // 6. Generic URL
     return {
       type: 'GENERIC',
       src: clean
@@ -1519,13 +1533,16 @@ export default function DashboardPage() {
                         </td>
                         <td className="py-3 text-right pr-2">
                           {log.recordingUrl ? (
-                            <button
-                              onClick={() => setSelectedRecordingSession(log)}
+                            <a
+                              href={log.recordingUrl}
+                              target="_blank"
+                              rel="noreferrer"
                               className="px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold inline-flex items-center gap-1.5 transition-colors border border-indigo-200 shadow-sm"
                             >
                               <Play className="w-3.5 h-3.5 fill-indigo-600 text-indigo-600" />
                               <span>Watch</span>
-                            </button>
+                              <ExternalLink className="w-3 h-3 text-indigo-500" />
+                            </a>
                           ) : (
                             <span className="text-[11px] text-slate-400 font-medium">No video</span>
                           )}
@@ -1641,16 +1658,25 @@ export default function DashboardPage() {
                             key={rec.id}
                             className="bg-white rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-col group"
                           >
-                            <div 
-                              onClick={() => setSelectedRecordingSession(rec)}
-                              className="h-40 bg-gradient-to-br from-[#0c2340] via-[#1a365d] to-indigo-950 p-4 flex flex-col justify-between relative cursor-pointer group-hover:brightness-105 transition-all"
+                            <a 
+                              href={rec.recordingUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="h-40 bg-gradient-to-br from-[#0c2340] via-[#1a365d] to-indigo-950 p-4 flex flex-col justify-between relative cursor-pointer group-hover:brightness-105 transition-all block"
                             >
                               <div className="flex items-center justify-between z-10">
                                 <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-white/20 text-white backdrop-blur-sm border border-white/10">
                                   {rec.subject}
                                 </span>
-                                <span className="text-[10px] font-semibold text-slate-300 bg-black/30 px-2 py-0.5 rounded-full backdrop-blur-sm">
-                                  {embedInfo?.type === 'YOUTUBE' ? 'YouTube' : embedInfo?.type === 'DRIVE' ? 'Google Drive' : embedInfo?.type === 'LOOM' ? 'Loom' : 'Class Video'}
+                                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full backdrop-blur-sm flex items-center gap-1 ${
+                                  embedInfo?.type === 'FATHOM'
+                                    ? 'bg-purple-600/80 text-purple-100 border border-purple-400/30 shadow-sm'
+                                    : 'bg-black/30 text-slate-300'
+                                }`}>
+                                  {embedInfo?.type === 'FATHOM' && <Sparkles className="w-3 h-3 text-purple-200" />}
+                                  <span>
+                                    {embedInfo?.type === 'FATHOM' ? 'Fathom AI' : embedInfo?.type === 'YOUTUBE' ? 'YouTube' : embedInfo?.type === 'DRIVE' ? 'Google Drive' : embedInfo?.type === 'LOOM' ? 'Loom' : 'Class Video'}
+                                  </span>
                                 </span>
                               </div>
 
@@ -1666,7 +1692,7 @@ export default function DashboardPage() {
                               </div>
 
                               <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:16px_16px]" />
-                            </div>
+                            </a>
 
                             <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
                               <div>
@@ -1678,13 +1704,16 @@ export default function DashboardPage() {
                                 </p>
                               </div>
 
-                              <button
-                                onClick={() => setSelectedRecordingSession(rec)}
+                              <a
+                                href={rec.recordingUrl}
+                                target="_blank"
+                                rel="noreferrer"
                                 className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-all"
                               >
                                 <Play className="w-3.5 h-3.5 fill-white" />
                                 <span>Watch Class Recording</span>
-                              </button>
+                                <ExternalLink className="w-3.5 h-3.5" />
+                              </a>
                             </div>
                           </div>
                         );
@@ -2430,14 +2459,16 @@ export default function DashboardPage() {
                       ) : (
                         <div className="flex items-center gap-2">
                           {s.recordingUrl && (
-                            <button
-                              type="button"
-                              onClick={() => setSelectedRecordingSession(s)}
+                            <a
+                              href={s.recordingUrl}
+                              target="_blank"
+                              rel="noreferrer"
                               className="px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold transition-colors flex items-center gap-1.5"
                             >
                               <Play className="w-3.5 h-3.5 fill-indigo-600 text-indigo-600" />
                               <span>Play</span>
-                            </button>
+                              <ExternalLink className="w-3 h-3 text-indigo-500" />
+                            </a>
                           )}
                           <button 
                             type="button"
@@ -2639,16 +2670,18 @@ export default function DashboardPage() {
                   </div>
 
                   <div>
-                    <label className="text-xs font-bold text-slate-700 block mb-1">Class Recording Link (Optional)</label>
+                    <label className="text-xs font-bold text-slate-700 block mb-1">
+                      Class Recording Link (Optional - Fathom AI, Google Drive, or Zoom)
+                    </label>
                     <input 
                       type="url" 
                       value={logRecordingUrl}
                       onChange={(e) => setLogRecordingUrl(e.target.value)}
-                      placeholder="e.g. Google Drive, YouTube Unlisted, Zoom cloud link, or MP4"
+                      placeholder="e.g. Fathom AI (https://fathom.video/share/...), Google Drive, or YouTube"
                       className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm bg-white"
                     />
                     <p className="text-[11px] text-slate-500 mt-1">
-                      Paste a shareable link (Google Drive, YouTube, Zoom, or Loom). Students can replay this class in their revision vault.
+                      Paste a shareable link (Fathom AI, Google Drive, YouTube, Zoom, or Loom). Students can replay this class and view AI study notes in their revision vault.
                     </p>
                   </div>
 
@@ -4515,7 +4548,7 @@ export default function DashboardPage() {
                   );
                 }
 
-                if (embed.type === 'YOUTUBE' || embed.type === 'DRIVE' || embed.type === 'LOOM') {
+                if (embed.type === 'YOUTUBE' || embed.type === 'DRIVE' || embed.type === 'LOOM' || embed.type === 'FATHOM') {
                   return (
                     <iframe
                       src={embed.src}
@@ -4553,6 +4586,43 @@ export default function DashboardPage() {
 
             {/* Lesson Context Details */}
             <div className="p-5 bg-slate-900/90 border-t border-slate-800 space-y-3 overflow-y-auto">
+              
+              {/* Special Fathom AI Lesson Insights Card */}
+              {(() => {
+                const embed = getEmbeddableVideoUrl(selectedRecordingSession.recordingUrl);
+                if (embed?.type === 'FATHOM') {
+                  return (
+                    <div className="p-3.5 rounded-2xl bg-purple-950/60 border border-purple-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-purple-600/30 border border-purple-500/40 flex items-center justify-center text-purple-300 shrink-0">
+                          <Sparkles className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-purple-200">Fathom AI Lesson Assistant</span>
+                            <span className="text-[10px] font-semibold bg-purple-900/60 text-purple-300 px-2 py-0.5 rounded-full border border-purple-700/50">
+                              Chapters &amp; Transcript
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-400 mt-0.5">
+                            Automated AI meeting notes, searchable student-teacher transcript, and speaker talk-time.
+                          </p>
+                        </div>
+                      </div>
+                      <a
+                        href={embed.shareUrl || selectedRecordingSession.recordingUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs flex items-center gap-1.5 self-start sm:self-auto transition-colors shadow-sm"
+                      >
+                        <span>Open AI Notes &amp; Transcript</span>
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="p-3.5 rounded-2xl bg-slate-950/60 border border-slate-800">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-400 block mb-1">
@@ -4625,11 +4695,11 @@ export default function DashboardPage() {
                   type="url"
                   value={editRecordingInput}
                   onChange={(e) => setEditRecordingInput(e.target.value)}
-                  placeholder="https://drive.google.com/... or https://youtube.com/..."
+                  placeholder="https://fathom.video/share/... or https://drive.google.com/..."
                   className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-mono bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
                 <p className="text-[11px] text-slate-500 mt-1">
-                  Supports Google Drive, YouTube Unlisted, Zoom Cloud recordings, Loom, or direct MP4 files.
+                  Supports Fathom AI, Google Drive, YouTube Unlisted, Zoom Cloud recordings, Loom, or direct MP4 files.
                 </p>
               </div>
 
