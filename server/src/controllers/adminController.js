@@ -68,6 +68,8 @@ const FALLBACK_TEACHERS = [
     classesTaken: 2,
     totalHoursTaken: 2.5,
     accruedPayout: 625.0,
+    recordedClassesCount: 2,
+    complianceRate: 100,
     joinedAt: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString()
   },
   {
@@ -82,6 +84,8 @@ const FALLBACK_TEACHERS = [
     classesTaken: 1,
     totalHoursTaken: 1.5,
     accruedPayout: 525.0,
+    recordedClassesCount: 1,
+    complianceRate: 100,
     joinedAt: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString()
   }
 ];
@@ -161,13 +165,20 @@ const getAdminUsers = async (req, res) => {
 
           const subjects = [...new Set(sessions.map(s => s.subject).filter(Boolean))];
 
+          let recordedClassesCount = 0;
+
           sessions.forEach(s => {
             if (s.classLog && s.classLog.attendanceStatus === 'PRESENT') {
               classesTaken += 1;
               totalHoursTaken += (s.classLog.durationHours || 0);
               totalPayout += (s.classLog.teacherPayoutAmount || 0);
+              if (s.recordingUrl || s.classLog.recordingUrl) {
+                recordedClassesCount += 1;
+              }
             }
           });
+
+          const complianceRate = classesTaken > 0 ? Math.round((recordedClassesCount / classesTaken) * 100) : 100;
 
           teachers.push({
             id: u.id,
@@ -181,6 +192,8 @@ const getAdminUsers = async (req, res) => {
             classesTaken,
             totalHoursTaken: Number(totalHoursTaken.toFixed(2)),
             accruedPayout: Number(totalPayout.toFixed(2)),
+            recordedClassesCount,
+            complianceRate,
             joinedAt: u.createdAt.toISOString()
           });
         } else if (u.role === 'ADMIN') {

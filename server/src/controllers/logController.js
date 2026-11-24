@@ -25,7 +25,8 @@ let CLASS_LOGS = [
     confirmedAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
     confirmedBy: 'Mrs. Sunita Verma',
     topicsCovered: 'Quadratic Equations: Factorization & Formula derivation with board PYQs.',
-    homeworkAssigned: 'Complete Exercise 4.2 Questions 1 to 6 in homework notebook.'
+    homeworkAssigned: 'Complete Exercise 4.2 Questions 1 to 6 in homework notebook.',
+    recordingUrl: 'https://www.youtube.com/watch?v=ZBalWWHY4Go'
   },
   {
     id: 'log-2',
@@ -50,7 +51,33 @@ let CLASS_LOGS = [
     confirmedBy: 'Mrs. Sunita Verma',
     confirmationRemarks: 'Parent informed teacher prior to class; student sick. Rescheduling.',
     topicsCovered: 'Cancelled - Student absent due to fever',
-    homeworkAssigned: 'No homework assigned'
+    homeworkAssigned: 'No homework assigned',
+    recordingUrl: null
+  },
+  {
+    id: 'log-3',
+    sessionId: 'session-4',
+    teacherId: 'user-teacher-1',
+    teacherName: 'Mrs. Sunita Verma',
+    studentId: 'user-student-1',
+    studentName: 'Aryan Sharma',
+    grade: 'Grade 10 (Board)',
+    subject: 'Mathematics',
+    date: new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString().split('T')[0],
+    startTime: '17:00',
+    endTime: '18:15',
+    durationMinutes: 75,
+    durationHours: 1.25,
+    attendanceStatus: 'PRESENT',
+    isStudentPresent: true,
+    billableHours: 1.25,
+    billableAmount: 500.0,
+    teacherPayoutAmount: 312.5,
+    confirmedAt: new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString(),
+    confirmedBy: 'Mrs. Sunita Verma',
+    topicsCovered: 'Quadratic Equations Deep-Dive and Formula Derivation',
+    homeworkAssigned: 'Exercise 4.3 questions 1 to 5',
+    recordingUrl: 'https://fathom.video/share/dEM0X1z9LaP'
   }
 ];
 
