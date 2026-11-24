@@ -1533,13 +1533,16 @@ export default function DashboardPage() {
                         </td>
                         <td className="py-3 text-right pr-2">
                           {log.recordingUrl ? (
-                            <button
-                              onClick={() => setSelectedRecordingSession(log)}
+                            <a
+                              href={log.recordingUrl}
+                              target="_blank"
+                              rel="noreferrer"
                               className="px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold inline-flex items-center gap-1.5 transition-colors border border-indigo-200 shadow-sm"
                             >
                               <Play className="w-3.5 h-3.5 fill-indigo-600 text-indigo-600" />
                               <span>Watch</span>
-                            </button>
+                              <ExternalLink className="w-3 h-3 text-indigo-500" />
+                            </a>
                           ) : (
                             <span className="text-[11px] text-slate-400 font-medium">No video</span>
                           )}
@@ -1655,9 +1658,11 @@ export default function DashboardPage() {
                             key={rec.id}
                             className="bg-white rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-col group"
                           >
-                            <div 
-                              onClick={() => setSelectedRecordingSession(rec)}
-                              className="h-40 bg-gradient-to-br from-[#0c2340] via-[#1a365d] to-indigo-950 p-4 flex flex-col justify-between relative cursor-pointer group-hover:brightness-105 transition-all"
+                            <a 
+                              href={rec.recordingUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="h-40 bg-gradient-to-br from-[#0c2340] via-[#1a365d] to-indigo-950 p-4 flex flex-col justify-between relative cursor-pointer group-hover:brightness-105 transition-all block"
                             >
                               <div className="flex items-center justify-between z-10">
                                 <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-white/20 text-white backdrop-blur-sm border border-white/10">
@@ -1687,7 +1692,7 @@ export default function DashboardPage() {
                               </div>
 
                               <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:16px_16px]" />
-                            </div>
+                            </a>
 
                             <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
                               <div>
@@ -1699,13 +1704,16 @@ export default function DashboardPage() {
                                 </p>
                               </div>
 
-                              <button
-                                onClick={() => setSelectedRecordingSession(rec)}
+                              <a
+                                href={rec.recordingUrl}
+                                target="_blank"
+                                rel="noreferrer"
                                 className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-all"
                               >
                                 <Play className="w-3.5 h-3.5 fill-white" />
                                 <span>Watch Class Recording</span>
-                              </button>
+                                <ExternalLink className="w-3.5 h-3.5" />
+                              </a>
                             </div>
                           </div>
                         );
@@ -2451,14 +2459,16 @@ export default function DashboardPage() {
                       ) : (
                         <div className="flex items-center gap-2">
                           {s.recordingUrl && (
-                            <button
-                              type="button"
-                              onClick={() => setSelectedRecordingSession(s)}
+                            <a
+                              href={s.recordingUrl}
+                              target="_blank"
+                              rel="noreferrer"
                               className="px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold transition-colors flex items-center gap-1.5"
                             >
                               <Play className="w-3.5 h-3.5 fill-indigo-600 text-indigo-600" />
                               <span>Play</span>
-                            </button>
+                              <ExternalLink className="w-3 h-3 text-indigo-500" />
+                            </a>
                           )}
                           <button 
                             type="button"
