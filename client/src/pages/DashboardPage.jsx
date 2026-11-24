@@ -133,9 +133,10 @@ export default function DashboardPage() {
   const [adminSimHours, setAdminSimHours] = useState(12);
   const [adminSimStudents, setAdminSimStudents] = useState(30);
 
-  // Search & Filter state for Admin Ledger
+  // Search & Filter state for Admin Ledger & Quality Audit
   const [searchQuery, setSearchQuery] = useState('');
   const [gradeFilter, setGradeFilter] = useState('ALL');
+  const [auditProofFilter, setAuditProofFilter] = useState('ALL');
 
   // Admin Academy Directory state (Students & Teachers Roster)
   const [adminDirectory, setAdminDirectory] = useState({
@@ -947,12 +948,16 @@ export default function DashboardPage() {
   const simNetProfit = simTotalRev - simTotalPay;
   const simMarginPct = Math.round((simNetProfit / simTotalRev) * 100);
 
-  // Filtered class logs for Admin
+  // Filtered class logs for Admin Quality Audit
   const filteredLogs = classLogs.filter(log => {
+    const recUrl = log.recordingUrl || sessions.find(s => s.id === log.sessionId)?.recordingUrl;
+    const term = searchQuery.toLowerCase().trim();
     const matchesSearch = 
-      log.studentName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      log.teacherName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      log.subject?.toLowerCase().includes(searchQuery.toLowerCase());
+      !term ||
+      log.studentName?.toLowerCase().includes(term) ||
+      log.teacherName?.toLowerCase().includes(term) ||
+      log.subject?.toLowerCase().includes(term) ||
+      log.topicsCovered?.toLowerCase().includes(term);
     
     const matchesGrade = 
       gradeFilter === 'ALL' || 
@@ -960,7 +965,12 @@ export default function DashboardPage() {
       (gradeFilter === 'GRADE12' && log.grade?.includes('12')) ||
       (gradeFilter === 'GRADE8' && (log.grade?.includes('8') || log.grade?.includes('9')));
 
-    return matchesSearch && matchesGrade;
+    const matchesProof =
+      auditProofFilter === 'ALL' ||
+      (auditProofFilter === 'RECORDED' && Boolean(recUrl)) ||
+      (auditProofFilter === 'MISSING' && !recUrl);
+
+    return matchesSearch && matchesGrade && matchesProof;
   });
 
   // Filtered Students Directory for Admin
@@ -1020,7 +1030,7 @@ export default function DashboardPage() {
       if (activeTab === 'OVERVIEW') return 'Academy Overview';
       if (activeTab === 'DIRECTORY') return 'Academy Directory';
       if (activeTab === 'INVITES') return 'Teacher & Staff Invites';
-      if (activeTab === 'LOGS_AUDIT') return 'Class Logs Audit';
+      if (activeTab === 'LOGS_AUDIT') return 'Lecture Quality & Class Logs Audit';
       if (activeTab === 'SIMULATOR') return 'Revenue Simulator';
       if (activeTab === 'RATES') return 'Grade Fee Rates';
       return 'Admin Dashboard';
@@ -1237,7 +1247,7 @@ export default function DashboardPage() {
                 }`}
               >
                 <FileText className="w-4 h-4 shrink-0" />
-                <span>Class Logs Audit</span>
+                <span>Lecture &amp; Logs Audit</span>
               </button>
 
               <button
@@ -3426,6 +3436,18 @@ export default function DashboardPage() {
                               <span className="text-[10px] text-slate-400 block mt-0.5">
                                 {teacher.classesTaken} classes taken
                               </span>
+                              <div className="mt-1">
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border inline-flex items-center gap-1 ${
+                                  (teacher.complianceRate ?? 100) >= 80 
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                                    : (teacher.complianceRate ?? 100) >= 50 
+                                    ? 'bg-amber-50 text-amber-700 border-amber-200' 
+                                    : 'bg-red-50 text-red-700 border-red-200'
+                                }`}>
+                                  <span>{(teacher.complianceRate ?? 100) >= 80 ? '✓' : '⚠️'}</span>
+                                  <span>{teacher.complianceRate ?? 100}% Proof</span>
+                                </span>
+                              </div>
                             </td>
                             <td className="py-3 text-xs">
                               <div className="font-extrabold text-slate-900">
@@ -3563,92 +3585,201 @@ export default function DashboardPage() {
             )}
 
             {/* Tab 4: Academy Class Logs Audit with Search & Filters */}
-            {activeTab === 'LOGS_AUDIT' && (
-            <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-                <div>
-                  <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-indigo-600" />
-                    Academy Class Logs Audit
-                  </h3>
-                  <p className="text-xs text-slate-500">Teacher class logs determine student fee bills and teacher payments.</p>
-                </div>
+            {activeTab === 'LOGS_AUDIT' && (() => {
+              const totalLogsCount = classLogs.length;
+              const verifiedLogsCount = classLogs.filter(l => Boolean(l.recordingUrl || sessions.find(s => s.id === l.sessionId)?.recordingUrl)).length;
+              const missingLogsCount = totalLogsCount - verifiedLogsCount;
+              const overallCompliancePct = totalLogsCount > 0 ? Math.round((verifiedLogsCount / totalLogsCount) * 100) : 100;
 
-                {/* Filter and Search */}
-                <div className="flex items-center gap-2">
-                  <div className="relative">
-                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                    <input 
-                      type="text" 
-                      placeholder="Search student or teacher..." 
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-8 pr-3 py-1.5 rounded-xl border border-slate-200 text-xs w-48 bg-slate-50 focus:bg-white"
-                    />
+              return (
+                <div className="space-y-6">
+                  {/* KPI Cards: Quality & Proof Audit Metrics */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm flex items-center justify-between">
+                      <div>
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Lectures Delivered</span>
+                        <div className="text-2xl font-black text-slate-900 mt-1">{totalLogsCount}</div>
+                        <span className="text-xs text-slate-500 mt-0.5 block">Recorded class logs</span>
+                      </div>
+                      <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
+                        <FileText className="w-6 h-6" />
+                      </div>
+                    </div>
+
+                    <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm flex items-center justify-between">
+                      <div>
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Lecture Proof Verified</span>
+                        <div className="flex items-baseline gap-2 mt-1">
+                          <span className="text-2xl font-black text-emerald-600">{overallCompliancePct}%</span>
+                          <span className="text-xs font-semibold text-slate-500">({verifiedLogsCount}/{totalLogsCount})</span>
+                        </div>
+                        <span className="text-xs text-slate-500 mt-0.5 block">Recordings available for review</span>
+                      </div>
+                      <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600">
+                        <ShieldCheck className="w-6 h-6" />
+                      </div>
+                    </div>
+
+                    <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm flex items-center justify-between">
+                      <div>
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Missing Proof Flagged</span>
+                        <div className="text-2xl font-black text-rose-600 mt-1">{missingLogsCount}</div>
+                        <span className="text-xs text-slate-500 mt-0.5 block">Classes lacking video proof</span>
+                      </div>
+                      <div className="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-600">
+                        <AlertCircle className="w-6 h-6" />
+                      </div>
+                    </div>
                   </div>
-                  <select 
-                    value={gradeFilter} 
-                    onChange={(e) => setGradeFilter(e.target.value)}
-                    className="px-2.5 py-1.5 rounded-xl border border-slate-200 text-xs bg-slate-50 font-medium"
-                  >
-                    <option value="ALL">All Standards</option>
-                    <option value="GRADE10">Grade 10</option>
-                    <option value="GRADE12">Grade 12</option>
-                    <option value="GRADE8">Grade 8-9</option>
-                  </select>
+
+                  {/* Audit Console Card */}
+                  <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-5 pb-4 border-b border-slate-100">
+                      <div>
+                        <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                          <ShieldCheck className="w-4 h-4 text-indigo-600" />
+                          Owner Lecture Quality &amp; Class Logs Audit
+                        </h3>
+                        <p className="text-xs text-slate-500 mt-0.5">Audit video recordings, syllabus delivery, and teacher compliance to resolve parent concerns.</p>
+                      </div>
+
+                      {/* Filter and Search Bar */}
+                      <div className="flex flex-wrap items-center gap-2.5">
+                        <div className="relative">
+                          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                          <input 
+                            type="text" 
+                            placeholder="Search teacher, student, topic..." 
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="pl-8 pr-3 py-1.5 rounded-xl border border-slate-200 text-xs w-52 bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          />
+                        </div>
+
+                        <select 
+                          value={auditProofFilter} 
+                          onChange={(e) => setAuditProofFilter(e.target.value)}
+                          className="px-2.5 py-1.5 rounded-xl border border-slate-200 text-xs bg-slate-50 font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        >
+                          <option value="ALL">All Proof Status</option>
+                          <option value="RECORDED">🟢 Recorded &amp; Verified</option>
+                          <option value="MISSING">🔴 Missing Proof</option>
+                        </select>
+
+                        <select 
+                          value={gradeFilter} 
+                          onChange={(e) => setGradeFilter(e.target.value)}
+                          className="px-2.5 py-1.5 rounded-xl border border-slate-200 text-xs bg-slate-50 font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        >
+                          <option value="ALL">All Standards</option>
+                          <option value="GRADE10">Grade 10</option>
+                          <option value="GRADE12">Grade 12</option>
+                          <option value="GRADE8">Grade 8-9</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-sm">
+                        <thead>
+                          <tr className="border-b border-slate-200 text-xs uppercase tracking-wider text-slate-400">
+                            <th className="py-2.5">Date &amp; Time</th>
+                            <th className="py-2.5">Teacher / Faculty</th>
+                            <th className="py-2.5">Student &amp; Grade</th>
+                            <th className="py-2.5">Syllabus &amp; Topics</th>
+                            <th className="py-2.5">Duration</th>
+                            <th className="py-2.5">Proof Status</th>
+                            <th className="py-2.5 text-right pr-2">Owner Quality Audit</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {filteredLogs.length === 0 ? (
+                            <tr>
+                              <td colSpan={7} className="py-8 text-center text-xs text-slate-400">
+                                No lectures match your search and filter criteria.
+                              </td>
+                            </tr>
+                          ) : (
+                            filteredLogs.map((log) => {
+                              const recUrl = log.recordingUrl || sessions.find(s => s.id === log.sessionId)?.recordingUrl;
+                              const sessionObj = sessions.find(s => s.id === log.sessionId) || { id: log.sessionId, recordingUrl: recUrl };
+                              const videoInfo = getEmbeddableVideoUrl(recUrl);
+
+                              const studentRate = log.grade?.includes('12') ? 600 : 400;
+                              const teacherRate = log.grade?.includes('12') ? 350 : 250;
+                              const studentCharge = Math.round(log.billableHours * studentRate);
+                              const teacherPay = Math.round(log.billableHours * teacherRate);
+
+                              return (
+                                <tr key={log.id} className="hover:bg-slate-50/60 transition-colors">
+                                  <td className="py-3 text-xs">
+                                    <div className="font-semibold text-slate-800">{log.date}</div>
+                                    <div className="text-[10px] text-slate-400">{log.time || 'Completed Class'}</div>
+                                  </td>
+                                  <td className="py-3 text-xs">
+                                    <div className="font-bold text-slate-900">{log.teacherName}</div>
+                                    <div className="text-[10px] text-slate-400">Faculty</div>
+                                  </td>
+                                  <td className="py-3 text-xs">
+                                    <span className="font-bold text-slate-800">{log.studentName}</span>
+                                    <span className="text-slate-400 ml-1">({log.grade})</span>
+                                  </td>
+                                  <td className="py-3 text-xs max-w-xs">
+                                    <span className="font-bold text-slate-800 block">{log.subject}</span>
+                                    <div className="text-[11px] text-slate-500 truncate" title={log.topicsCovered}>
+                                      {log.topicsCovered || 'No topics noted'}
+                                    </div>
+                                  </td>
+                                  <td className="py-3 text-xs">
+                                    <div className="font-bold text-indigo-600">{log.billableHours} hrs</div>
+                                    <div className="text-[10px] text-slate-400">₹{studentCharge} billed / ₹{teacherPay} pay</div>
+                                  </td>
+                                  <td className="py-3 text-xs">
+                                    {recUrl ? (
+                                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                        <span>Verified ({videoInfo?.type === 'FATHOM' ? 'Fathom AI' : videoInfo?.type === 'YOUTUBE' ? 'YouTube' : 'Video'})</span>
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                                        <AlertCircle className="w-3 h-3 text-rose-500" />
+                                        <span>Missing Proof</span>
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="py-3 text-xs text-right pr-2">
+                                    {recUrl ? (
+                                      <a
+                                        href={recUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm transition-all"
+                                      >
+                                        <Play className="w-3.5 h-3.5 fill-current" />
+                                        <span>Audit Lecture ↗</span>
+                                      </a>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleOpenEditRecording(sessionObj)}
+                                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-600 hover:text-indigo-600 border border-slate-200 hover:border-indigo-300 bg-white hover:bg-indigo-50/50 transition-all"
+                                      >
+                                        <Plus className="w-3 h-3" />
+                                        <span>Attach Link</span>
+                                      </button>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
                 </div>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-200 text-xs uppercase tracking-wider text-slate-400">
-                      <th className="py-2.5">Date</th>
-                      <th className="py-2.5">Teacher</th>
-                      <th className="py-2.5">Student & Grade</th>
-                      <th className="py-2.5">Subject & Topics</th>
-                      <th className="py-2.5">Duration</th>
-                      <th className="py-2.5">Student Fee</th>
-                      <th className="py-2.5">Teacher Payment</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {filteredLogs.map((log) => {
-                      const studentRate = log.grade?.includes('12') ? 600 : 400;
-                      const teacherRate = log.grade?.includes('12') ? 350 : 250;
-                      const studentCharge = Math.round(log.billableHours * studentRate);
-                      const teacherPay = Math.round(log.billableHours * teacherRate);
-
-                      return (
-                        <tr key={log.id} className="hover:bg-slate-50/60 transition-colors">
-                          <td className="py-3 font-semibold text-slate-800 text-xs">{log.date}</td>
-                          <td className="py-3 font-semibold text-slate-900 text-xs">{log.teacherName}</td>
-                          <td className="py-3 text-xs">
-                            <span className="font-bold text-slate-800">{log.studentName}</span>
-                            <span className="text-slate-400 ml-1">({log.grade})</span>
-                          </td>
-                          <td className="py-3 text-xs">
-                            <span className="font-bold text-slate-800">{log.subject}</span>
-                            <div className="text-[11px] text-slate-400 truncate max-w-xs">{log.topicsCovered}</div>
-                          </td>
-                          <td className="py-3 text-xs font-bold text-indigo-600">
-                            {log.billableHours} hrs
-                          </td>
-                          <td className="py-3 text-xs font-extrabold text-emerald-600">
-                            ₹{studentCharge}
-                          </td>
-                          <td className="py-3 text-xs font-medium text-slate-600">
-                            ₹{teacherPay}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            )}
+              );
+            })()}
 
             {/* Tab 6: Configurable Grade Rate Cards Matrix */}
             {activeTab === 'RATES' && (

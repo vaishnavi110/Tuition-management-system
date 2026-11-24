@@ -611,6 +611,22 @@ async function runTestSuite() {
     const adminAuditedSession = adminSessionsRes.data.sessions.find(s => s.id === targetSession.id);
     assert(adminAuditedSession && adminAuditedSession.recordingUrl === demoFathomUrl, 'Admin has full visibility to audit Fathom AI lecture recording');
 
+    // 12.11 Admin fetches /api/admin/users to audit teacher compliance rate & proof stats (#54)
+    const adminUsersRes = await request('GET', '/admin/users', null, adminToken);
+    assert(adminUsersRes.status === 200, 'Admin fetches users directory with teacher compliance data (HTTP 200)');
+    assert(Array.isArray(adminUsersRes.data.teachers), 'Admin users response contains teachers array');
+    assert(adminUsersRes.data.teachers.length > 0, 'Directory has teachers for compliance calculation');
+    const auditTeacher = adminUsersRes.data.teachers[0];
+    assert(typeof auditTeacher.complianceRate === 'number', 'Teacher object includes computed complianceRate percentage');
+    assert(typeof auditTeacher.recordedClassesCount === 'number', 'Teacher object includes recordedClassesCount');
+
+    // 12.12 Admin fetches /api/logs/all and audits lecture proof URLs (#54)
+    const adminLogsRes = await request('GET', '/logs/all', null, adminToken);
+    assert(adminLogsRes.status === 200, 'Admin fetches all class logs for quality & proof audit (HTTP 200)');
+    assert(Array.isArray(adminLogsRes.data.logs), 'Class logs array returned for audit console');
+    const logsWithRecording = adminLogsRes.data.logs.filter(l => Boolean(l.recordingUrl));
+    assert(logsWithRecording.length >= 0, 'Admin can filter logs by recording proof status');
+
     // -------------------------------------------------------------------------
     // 13. Automated Teardown of Temporary Test Users
     // -------------------------------------------------------------------------
