@@ -776,9 +776,75 @@ async function runTestSuite() {
     }, studentToken);
 
     // -------------------------------------------------------------------------
-    // 15. Automated Teardown of Temporary Test Users
+    // 15. Homework Photo Uploads & Student Notebook Submissions (#8)
     // -------------------------------------------------------------------------
-    console.log('\n--- 15. Automated Teardown of Temporary Test Users ---');
+    console.log('\n--- 15. Homework Photo Uploads & Student Notebook Submissions (#8) ---');
+
+    // 15.1 RBAC checks
+    const unauthHwRes = await request('GET', '/homework');
+    assert(unauthHwRes.status === 401, 'Unauthenticated request to /api/homework is blocked (HTTP 401)');
+
+    const studentCreateHwRes = await request('POST', '/homework', {
+      title: 'Unauthorized Student Task'
+    }, studentToken);
+    assert(studentCreateHwRes.status === 403, 'Student cannot create teacher homework assignments (HTTP 403)');
+
+    // 15.2 Validation: reject invalid file format on teacher question upload
+    const invalidTeacherUploadRes = await request('POST', '/homework', {
+      title: 'Invalid Attachment Test',
+      teacherImageData: 'data:text/plain;base64,SGVsbG8='
+    }, teacherToken);
+    assert(invalidTeacherUploadRes.status === 400, 'Backend strictly rejects unsupported file formats with HTTP 400');
+
+    // 15.3 Teacher posts homework assignment with question sheet PNG image
+    const sampleTinyPng = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+    const createHwRes = await request('POST', '/homework', {
+      sessionId: targetSession.id,
+      title: 'Quadratic Equations Practice Sheet #8',
+      description: 'Solve Q1 to Q4 clearly in your notebook and upload a photo.',
+      teacherImageData: sampleTinyPng
+    }, teacherToken);
+    assert(createHwRes.status === 201, 'Teacher posts homework assignment with question photo (HTTP 201)');
+    assert(Boolean(createHwRes.data?.homework?.id), 'Created homework returns unique ID');
+    assert(createHwRes.data?.homework?.status === 'PENDING', 'Newly posted homework starts with PENDING status');
+    assert(createHwRes.data?.homework?.teacherImageUrl === sampleTinyPng, 'Teacher question photo persisted');
+
+    const createdHwId = createHwRes.data.homework.id;
+
+    // 15.4 Student fetches homework list and sees the new assignment
+    const studentHwListRes = await request('GET', '/homework', null, studentToken);
+    assert(studentHwListRes.status === 200, 'Student fetches assigned homework list (HTTP 200)');
+    const foundStudentHw = studentHwListRes.data?.homeworks?.find(h => h.id === createdHwId);
+    assert(Boolean(foundStudentHw), 'Newly assigned homework appears in student portal');
+
+    // 15.5 Student validation: reject unsupported notebook submission file type
+    const invalidStudentSubmitRes = await request('POST', `/homework/${createdHwId}/submit`, {
+      imageData: 'data:application/javascript;base64,YWxlcnQoMSk='
+    }, studentToken);
+    assert(invalidStudentSubmitRes.status === 400, 'Student notebook upload strictly rejects invalid file formats (HTTP 400)');
+
+    // 15.6 Student uploads notebook photo
+    const submitHwRes = await request('POST', `/homework/${createdHwId}/submit`, {
+      imageData: sampleTinyPng,
+      fileName: 'aryan-notebook-page1.png'
+    }, studentToken);
+    assert(submitHwRes.status === 200, 'Student uploads completed notebook photo cleanly (HTTP 200)');
+    assert(submitHwRes.data?.homework?.status === 'SUBMITTED', 'Homework status updates to SUBMITTED upon student upload');
+    assert(submitHwRes.data?.homework?.studentSubmissionUrl === sampleTinyPng, 'Student notebook submission URL stored');
+
+    // 15.7 Teacher reviews submission and adds feedback
+    const reviewHwRes = await request('PATCH', `/homework/${createdHwId}/review`, {
+      status: 'REVIEWED',
+      feedback: 'Neat discriminant steps! Good job.'
+    }, teacherToken);
+    assert(reviewHwRes.status === 200, 'Teacher reviews and approves student submission (HTTP 200)');
+    assert(reviewHwRes.data?.homework?.status === 'REVIEWED', 'Homework status updates to REVIEWED');
+    assert(reviewHwRes.data?.homework?.teacherFeedback === 'Neat discriminant steps! Good job.', 'Teacher feedback saved cleanly');
+
+    // -------------------------------------------------------------------------
+    // 16. Automated Teardown of Temporary Test Users
+    // -------------------------------------------------------------------------
+    console.log('\n--- 16. Automated Teardown of Temporary Test Users ---');
     let cleanupSuccess = 0;
     for (const userId of createdTestUserIds) {
       try {
