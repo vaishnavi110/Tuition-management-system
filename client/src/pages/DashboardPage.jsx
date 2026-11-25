@@ -196,8 +196,19 @@ export default function DashboardPage() {
   const [attendanceError, setAttendanceError] = useState(null);
   const [failedSessionRetry, setFailedSessionRetry] = useState(null);
 
-  // Homework Upload state (Student Portal)
-  const [uploadedHomeworkFile, setUploadedHomeworkFile] = useState(null);
+  // Homework Photo Upload & Review state (Student & Teacher Portals - Issue #8)
+  const [homeworkList, setHomeworkList] = useState([]);
+  const [selectedHomeworkId, setSelectedHomeworkId] = useState(null);
+  const [isUploadingHomework, setIsUploadingHomework] = useState(false);
+  const [homeworkUploadError, setHomeworkUploadError] = useState(null);
+  const [lightboxImage, setLightboxImage] = useState(null);
+  const [hwSessionId, setHwSessionId] = useState('');
+  const [hwTitle, setHwTitle] = useState('');
+  const [hwDescription, setHwDescription] = useState('');
+  const [hwTeacherPhoto, setHwTeacherPhoto] = useState(null);
+  const [isCreatingHomework, setIsCreatingHomework] = useState(false);
+  const [hwFilterStatus, setHwFilterStatus] = useState('ALL');
+  const [hwFeedbackInputs, setHwFeedbackInputs] = useState({});
 
   // Copy state for payment instructions
   const [copiedUpi, setCopiedUpi] = useState(false);
@@ -537,11 +548,12 @@ export default function DashboardPage() {
   const fetchData = async () => {
     setBillingError(null);
     try {
-      const [gradesRes, sessionsRes, attendanceRes, logsRes] = await Promise.all([
+      const [gradesRes, sessionsRes, attendanceRes, logsRes, homeworkRes] = await Promise.all([
         axios.get('/api/schedule/grades').catch(() => ({ data: { grades: [] } })),
         axios.get('/api/schedule/sessions').catch(() => ({ data: { sessions: [] } })),
         axios.get('/api/attendance/all').catch(() => ({ data: { attendance: {} } })),
-        axios.get('/api/logs/monthly-summary').catch(() => ({ data: { summary: { totalBillableHours: 0, logs: [] } } }))
+        axios.get('/api/logs/monthly-summary').catch(() => ({ data: { summary: { totalBillableHours: 0, logs: [] } } })),
+        axios.get('/api/homework').catch(() => ({ data: { homeworks: [] } }))
       ]);
 
       setGrades(gradesRes.data?.grades || []);
@@ -549,12 +561,19 @@ export default function DashboardPage() {
       setSessions(loadedSessions);
       setAttendanceRecords(attendanceRes.data?.attendance || {});
 
+      const loadedHomeworks = homeworkRes.data?.homeworks || [];
+      setHomeworkList(loadedHomeworks);
+      if (loadedHomeworks.length > 0 && !selectedHomeworkId) {
+        setSelectedHomeworkId(loadedHomeworks[0].id);
+      }
+
       const summary = logsRes.data?.summary || { totalBillableHours: 0, logs: [] };
       setClassLogs(summary.logs || []);
       setMonthlyHours(summary.totalBillableHours !== undefined ? summary.totalBillableHours : 0);
 
       if (loadedSessions.length > 0) {
         setSelectedSessionId(loadedSessions[0].id);
+        setHwSessionId(loadedSessions[0].id);
         setLogStartTime(loadedSessions[0].startTime || '17:00');
         setLogEndTime(loadedSessions[0].endTime || '18:15'); // 75 mins demo standard
       }
@@ -900,18 +919,117 @@ export default function DashboardPage() {
     }
   };
 
-  // Homework file selection
-  const handleHomeworkUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setUploadedHomeworkFile({
-        name: file.name,
-        size: (file.size / 1024).toFixed(1) + ' KB',
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        previewUrl: URL.createObjectURL(file)
+  // Helper to validate & read uploaded image/PDF as Data URL
+  const readImageFileAsDataUrl = (file) => {
+    return new Promise((resolve, reject) => {
+      if (!file) return reject(new Error('No file selected'));
+      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif', 'application/pdf'];
+      if (!allowedTypes.includes(file.type)) {
+        return reject(new Error('Unsupported file format. Please upload JPG, PNG, WEBP, GIF, or PDF.'));
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        return reject(new Error('File size exceeds 5 MB limit. Please upload a smaller photo.'));
+      }
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(new Error('Failed to read selected file.'));
+      reader.readAsDataURL(file);
+    });
+  };
+
+  // Student uploads completed notebook photo for an assignment
+  const handleStudentSubmitHomework = async (homeworkId, e) => {
+    const file = e.target.files?.[0];
+    if (!file || !homeworkId) return;
+    setHomeworkUploadError(null);
+    setIsUploadingHomework(true);
+    try {
+      const dataUrl = await readImageFileAsDataUrl(file);
+      const res = await axios.post(`/api/homework/${homeworkId}/submit`, {
+        imageData: dataUrl,
+        fileName: file.name
       });
-      setActionSuccess('Work submitted for teacher review.');
+      if (res.data?.homework) {
+        setHomeworkList(prev => prev.map(h => h.id === homeworkId ? res.data.homework : h));
+      }
+      setActionSuccess('Notebook photo submitted for teacher review.');
       setTimeout(() => setActionSuccess(''), 4000);
+    } catch (err) {
+      setHomeworkUploadError(err.response?.data?.error || err.message || 'Failed to upload notebook photo.');
+    } finally {
+      setIsUploadingHomework(false);
+      e.target.value = '';
+    }
+  };
+
+  // Teacher selects question sheet image before posting assignment
+  const handleTeacherHomeworkPhotoSelect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setHomeworkUploadError(null);
+    try {
+      const dataUrl = await readImageFileAsDataUrl(file);
+      setHwTeacherPhoto({
+        name: file.name,
+        size: `${(file.size / 1024).toFixed(1)} KB`,
+        dataUrl
+      });
+    } catch (err) {
+      setHomeworkUploadError(err.message);
+    } finally {
+      e.target.value = '';
+    }
+  };
+
+  // Teacher posts new homework assignment with optional question photo
+  const handleTeacherCreateHomework = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!hwTitle.trim()) {
+      setHomeworkUploadError('Please enter a homework title.');
+      return;
+    }
+    setHomeworkUploadError(null);
+    setIsCreatingHomework(true);
+    try {
+      const targetSess = sessions.find(s => s.id === hwSessionId) || sessions[0];
+      const res = await axios.post('/api/homework', {
+        sessionId: targetSess?.id,
+        studentName: targetSess?.studentName,
+        subject: targetSess?.subject,
+        title: hwTitle.trim(),
+        description: hwDescription.trim(),
+        teacherImageData: hwTeacherPhoto?.dataUrl || null
+      });
+      if (res.data?.homework) {
+        setHomeworkList(prev => [res.data.homework, ...prev]);
+      }
+      setHwTitle('');
+      setHwDescription('');
+      setHwTeacherPhoto(null);
+      setActionSuccess('Homework assignment & question photo posted to student.');
+      setTimeout(() => setActionSuccess(''), 4000);
+    } catch (err) {
+      setHomeworkUploadError(err.response?.data?.error || 'Failed to post homework assignment.');
+    } finally {
+      setIsCreatingHomework(false);
+    }
+  };
+
+  // Teacher inspects & marks student notebook submission as REVIEWED or PENDING
+  const handleTeacherReviewHomework = async (homeworkId, nextStatus = 'REVIEWED') => {
+    try {
+      const feedback = hwFeedbackInputs[homeworkId] || '';
+      const res = await axios.patch(`/api/homework/${homeworkId}/review`, {
+        status: nextStatus,
+        feedback
+      });
+      if (res.data?.homework) {
+        setHomeworkList(prev => prev.map(h => h.id === homeworkId ? res.data.homework : h));
+      }
+      setActionSuccess(nextStatus === 'REVIEWED' ? 'Student homework marked as reviewed.' : 'Homework sent back for revision.');
+      setTimeout(() => setActionSuccess(''), 4000);
+    } catch (err) {
+      console.error('Review homework error:', err);
     }
   };
 
@@ -1109,6 +1227,7 @@ export default function DashboardPage() {
       if (activeTab === 'SCHEDULE') return 'Class Schedule';
       if (activeTab === 'LOG_ENTRY') return 'Save Class Log';
       if (activeTab === 'HOURS') return 'Hours & Payment';
+      if (activeTab === 'TEACHER_HOMEWORK') return 'Homework & Submissions';
       return 'Teacher Dashboard';
     }
     if (role === 'ADMIN') {
@@ -1281,6 +1400,27 @@ export default function DashboardPage() {
               >
                 <Layers className="w-4 h-4 shrink-0" />
                 <span>Hours & Payment</span>
+              </button>
+
+              <button
+                onClick={() => { setActiveTab('TEACHER_HOMEWORK'); setIsMobileMenuOpen(false); }}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === 'TEACHER_HOMEWORK'
+                    ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-200'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <BookOpen className="w-4 h-4 shrink-0" />
+                  <span>Homework &amp; Review</span>
+                </div>
+                {homeworkList.filter(h => h.status === 'SUBMITTED').length > 0 && (
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-extrabold ${
+                    activeTab === 'TEACHER_HOMEWORK' ? 'bg-white text-indigo-700' : 'bg-amber-100 text-amber-800'
+                  }`}>
+                    {homeworkList.filter(h => h.status === 'SUBMITTED').length}
+                  </span>
+                )}
               </button>
             </>
           )}
@@ -2204,7 +2344,12 @@ export default function DashboardPage() {
             )}
 
             {/* Tab 4: Homework & Practice — Full-Page UI */}
-            {activeTab === 'HOMEWORK' && (
+            {activeTab === 'HOMEWORK' && (() => {
+              const activeHw = homeworkList.find(h => h.id === selectedHomeworkId) || homeworkList[0] || null;
+              const pendingCount = homeworkList.filter(h => h.status === 'PENDING').length;
+              const submittedCount = homeworkList.filter(h => h.status === 'SUBMITTED' || h.status === 'REVIEWED').length;
+
+              return (
               <div className="space-y-6 animate-fadeIn">
                 
                 {/* Full-Page Homework Banner */}
@@ -2212,28 +2357,28 @@ export default function DashboardPage() {
                   <div>
                     <div className="flex items-center gap-2 mb-1.5">
                       <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
-                        Student Practice Hub &bull; Grade 10
+                        Student Practice Hub &bull; {user?.grade || 'Grade 10'}
                       </span>
                       <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${
-                        uploadedHomeworkFile 
+                        pendingCount === 0
                           ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
                           : 'bg-amber-50 text-amber-700 border border-amber-200'
                       }`}>
-                        {uploadedHomeworkFile ? 'Submitted for review' : '1 Active assignment'}
+                        {pendingCount === 0 ? 'All assignments submitted' : `${pendingCount} Pending task${pendingCount > 1 ? 's' : ''}`}
                       </span>
                     </div>
                     <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
                       Homework &amp; Practice
                     </h2>
                     <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                      Complete your daily assignments and upload photos of your completed notebook work for teacher review.
+                      View homework question sheets uploaded by your teacher and submit photos of your completed notebook pages.
                     </p>
                   </div>
 
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-semibold px-3.5 py-2 rounded-xl bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center gap-2">
                       <BookOpen className="w-4 h-4 text-indigo-600" />
-                      <span>NCERT Curriculum Active</span>
+                      <span>{homeworkList.length} Assignment{homeworkList.length === 1 ? '' : 's'}</span>
                     </span>
                   </div>
                 </div>
@@ -2244,124 +2389,266 @@ export default function DashboardPage() {
                     <span className="text-xs font-semibold text-slate-500 flex items-center gap-1.5">
                       <BookOpen className="w-3.5 h-3.5 text-indigo-600" /> Active Assignment
                     </span>
-                    <div className="text-2xl font-extrabold text-slate-900 mt-1">
-                      Exercise 4.2
+                    <div className="text-lg font-extrabold text-slate-900 mt-1 truncate">
+                      {activeHw ? activeHw.title : 'No Homework Yet'}
                     </div>
-                    <span className="text-[11px] text-indigo-600 font-bold mt-0.5 block">Mathematics &bull; Quadratic Equations</span>
+                    <span className="text-[11px] text-indigo-600 font-bold mt-0.5 block">
+                      {activeHw ? `${activeHw.subject} • ${activeHw.teacherName}` : 'All caught up'}
+                    </span>
                   </div>
 
                   <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
                     <span className="text-xs font-semibold text-slate-500 flex items-center gap-1.5">
                       <Upload className="w-3.5 h-3.5 text-indigo-600" /> Submission Status
                     </span>
-                    <div className={`text-2xl font-extrabold mt-1 ${uploadedHomeworkFile ? 'text-emerald-600' : 'text-amber-600'}`}>
-                      {uploadedHomeworkFile ? 'Work Uploaded' : 'Pending Upload'}
+                    <div className={`text-2xl font-extrabold mt-1 ${
+                      activeHw?.status === 'REVIEWED'
+                        ? 'text-emerald-600'
+                        : activeHw?.status === 'SUBMITTED'
+                          ? 'text-blue-600'
+                          : 'text-amber-600'
+                    }`}>
+                      {activeHw?.status === 'REVIEWED'
+                        ? 'Reviewed'
+                        : activeHw?.status === 'SUBMITTED'
+                          ? 'Submitted'
+                          : 'Pending Upload'}
                     </div>
                     <span className="text-[11px] text-slate-400 font-medium mt-0.5 block">
-                      {uploadedHomeworkFile ? `Submitted at ${uploadedHomeworkFile.time}` : 'Due before next class'}
+                      {submittedCount} of {homeworkList.length} tasks uploaded
                     </span>
                   </div>
 
                   <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
                     <span className="text-xs font-semibold text-slate-500 flex items-center gap-1.5">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600" /> Teacher Review
+                      <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600" /> Assigned Teacher
                     </span>
-                    <div className="text-2xl font-extrabold text-indigo-600 mt-1">
-                      Mrs. Sunita Verma
+                    <div className="text-2xl font-extrabold text-indigo-600 mt-1 truncate">
+                      {activeHw?.teacherName || 'Subject Tutor'}
                     </div>
-                    <span className="text-[11px] text-slate-400 font-medium mt-0.5 block">Reviewed during next 1-on-1 class</span>
+                    <span className="text-[11px] text-slate-400 font-medium mt-0.5 block">
+                      Reviews notebook photos online
+                    </span>
                   </div>
                 </div>
+
+                {/* Assignment Selector Strip if multiple homeworks exist */}
+                {homeworkList.length > 1 && (
+                  <div className="flex flex-wrap items-center gap-2 bg-white p-3 rounded-2xl border border-slate-200/80 shadow-sm">
+                    <span className="text-xs font-bold text-slate-500 px-2">Select Assignment:</span>
+                    {homeworkList.map((hw) => (
+                      <button
+                        key={hw.id}
+                        type="button"
+                        onClick={() => { setSelectedHomeworkId(hw.id); setHomeworkUploadError(null); }}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border ${
+                          activeHw?.id === hw.id
+                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                            : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                        }`}
+                      >
+                        <span className="truncate max-w-[200px]">{hw.title}</span>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                          hw.status === 'REVIEWED'
+                            ? 'bg-emerald-500/20 text-emerald-100'
+                            : hw.status === 'SUBMITTED'
+                              ? 'bg-blue-500/20 text-blue-100'
+                              : 'bg-amber-500/20 text-amber-200'
+                        }`}>
+                          {hw.status === 'REVIEWED' ? '✓' : hw.status === 'SUBMITTED' ? 'Sent' : 'Due'}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {homeworkUploadError && (
+                  <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-semibold flex items-center gap-2 shadow-sm">
+                    <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
+                    <span>{homeworkUploadError}</span>
+                  </div>
+                )}
 
                 {/* Main Active Assignment & Upload Grid */}
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-                  
-                  {/* Left Column: Assignment Details & Instructions (7 cols) */}
-                  <div className="lg:col-span-7 bg-white p-6 sm:p-7 rounded-2xl border border-slate-200/80 shadow-sm space-y-4">
-                    <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                      <div>
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 block">Current Assignment</span>
-                        <h3 className="text-lg font-bold text-slate-900 mt-0.5">
-                          NCERT Exercise 4.2: Quadratic Formula Applications
-                        </h3>
-                      </div>
-                      <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
-                        Due Tomorrow 5:00 PM
-                      </span>
-                    </div>
-
-                    <div className="text-xs text-slate-600 space-y-2.5 leading-relaxed">
-                      <p className="font-semibold text-slate-800">
-                        Instructions from your teacher:
-                      </p>
-                      <ul className="list-disc pl-5 space-y-1.5 text-slate-600">
-                        <li>Solve Questions 1 through 5 from NCERT Exercise 4.2 in your mathematics practice notebook.</li>
-                        <li>Write out every step clearly, including identifying coefficients <strong className="font-mono text-slate-900">a, b, c</strong> and calculating the discriminant <strong className="font-mono text-slate-900">b² - 4ac</strong>.</li>
-                        <li>Double-check negative signs when applying the formula <strong className="font-mono text-slate-900">x = (-b ± √D) / 2a</strong>.</li>
-                        <li>Take a clear, well-lit photo of your written answers and upload it using the upload box on the right.</li>
-                      </ul>
-                    </div>
-
-                    <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1">
-                      <span className="font-bold text-slate-800 flex items-center gap-1.5">
-                        <Info className="w-3.5 h-3.5 text-indigo-600" />
-                        <span>Why upload notebook photos?</span>
-                      </span>
-                      <p className="text-slate-500 text-[11px] leading-relaxed">
-                        Uploading your handwritten solutions allows your teacher to identify exact calculation mistakes and review them during your live 1-on-1 Google Meet session.
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Right Column: Interactive Upload & Confirmation (5 cols) */}
-                  <div className="lg:col-span-5 bg-white p-6 sm:p-7 rounded-2xl border border-slate-200/80 shadow-sm space-y-4">
-                    <h4 className="font-bold text-sm text-slate-900 flex items-center gap-2">
-                      <Upload className="w-4 h-4 text-indigo-600" />
-                      <span>Upload Notebook Photo</span>
-                    </h4>
-
-                    {/* Uploaded File Confirmation Banner */}
-                    {uploadedHomeworkFile ? (
-                      <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-3">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
-                            <CheckCircle2 className="w-5 h-5" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <span className="text-xs font-bold text-emerald-900 block truncate">{uploadedHomeworkFile.name}</span>
-                            <span className="text-[10px] text-emerald-700 block">Submitted at {uploadedHomeworkFile.time} ({uploadedHomeworkFile.size})</span>
-                          </div>
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-200 text-emerald-800">
-                            Submitted
+                {activeHw ? (
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                    
+                    {/* Left Column: Assignment Details & Question Photo (7 cols) */}
+                    <div className="lg:col-span-7 bg-white p-6 sm:p-7 rounded-2xl border border-slate-200/80 shadow-sm space-y-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100">
+                        <div>
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 block">
+                            {activeHw.subject} &bull; Assigned Assignment
                           </span>
+                          <h3 className="text-lg font-bold text-slate-900 mt-0.5">
+                            {activeHw.title}
+                          </h3>
+                        </div>
+                        <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${
+                          activeHw.status === 'REVIEWED'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : activeHw.status === 'SUBMITTED'
+                              ? 'bg-blue-50 text-blue-700 border-blue-200'
+                              : 'bg-amber-50 text-amber-700 border-amber-200'
+                        }`}>
+                          {activeHw.status === 'REVIEWED'
+                            ? 'Reviewed by Teacher'
+                            : activeHw.status === 'SUBMITTED'
+                              ? 'Submitted for Review'
+                              : 'Pending Notebook Upload'}
+                        </span>
+                      </div>
+
+                      {activeHw.description && (
+                        <div className="text-xs text-slate-700 space-y-1.5 leading-relaxed bg-slate-50 p-4 rounded-xl border border-slate-100">
+                          <span className="font-bold text-slate-900 block">Instructions from {activeHw.teacherName}:</span>
+                          <p className="whitespace-pre-line">{activeHw.description}</p>
+                        </div>
+                      )}
+
+                      {/* Teacher Question Sheet Photo Preview */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                            <ImageIcon className="w-4 h-4 text-indigo-600" />
+                            <span>Teacher Question Sheet / Worksheet</span>
+                          </span>
+                          {activeHw.teacherImageUrl && (
+                            <button
+                              type="button"
+                              onClick={() => setLightboxImage({ title: `${activeHw.title} — Question Sheet`, src: activeHw.teacherImageUrl })}
+                              className="text-xs font-bold text-indigo-600 hover:underline flex items-center gap-1"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                              <span>Zoom Full Screen</span>
+                            </button>
+                          )}
                         </div>
 
-                        <p className="text-[11px] text-emerald-800 leading-relaxed">
-                          Your photo is safely saved for teacher review. You can upload a new photo anytime if you make revisions.
-                        </p>
+                        {activeHw.teacherImageUrl ? (
+                          activeHw.teacherImageUrl.startsWith('data:application/pdf') ? (
+                            <div className="p-4 rounded-xl bg-indigo-50 border border-indigo-200 flex items-center justify-between">
+                              <span className="text-xs font-bold text-indigo-900">PDF Worksheet Attached</span>
+                              <a
+                                href={activeHw.teacherImageUrl}
+                                download={`${activeHw.title}.pdf`}
+                                className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-bold"
+                              >
+                                Download PDF
+                              </a>
+                            </div>
+                          ) : (
+                            <div
+                              onClick={() => setLightboxImage({ title: `${activeHw.title} — Question Sheet`, src: activeHw.teacherImageUrl })}
+                              className="rounded-2xl border border-slate-200 overflow-hidden bg-slate-50 cursor-pointer hover:border-indigo-400 transition-all group relative"
+                            >
+                              <img
+                                src={activeHw.teacherImageUrl}
+                                alt="Teacher homework question sheet"
+                                className="w-full max-h-72 object-contain bg-white"
+                              />
+                              <div className="px-3 py-2 bg-slate-50 border-t border-slate-100 text-[11px] font-semibold text-slate-500 group-hover:text-indigo-600 flex items-center justify-between">
+                                <span>Click image to inspect questions full-screen</span>
+                                <ExternalLink className="w-3.5 h-3.5" />
+                              </div>
+                            </div>
+                          )
+                        ) : (
+                          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-500">
+                            No question sheet image attached for this assignment. Follow the written instructions above.
+                          </div>
+                        )}
                       </div>
-                    ) : (
-                      <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-200 text-amber-800 text-xs">
-                        No file uploaded yet. Please upload your completed homework photo before tomorrow's class.
-                      </div>
-                    )}
 
-                    {/* Drag & Drop File Upload Area */}
-                    <label className="border-2 border-dashed border-slate-200 hover:border-indigo-500 rounded-2xl p-6 flex flex-col items-center justify-center cursor-pointer transition-all bg-slate-50/50 hover:bg-indigo-50/20 group">
-                      <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mb-2 group-hover:scale-105 transition-transform">
-                        <Upload className="w-6 h-6 text-indigo-600" />
-                      </div>
-                      <span className="text-xs font-bold text-slate-800 group-hover:text-indigo-600 transition-colors text-center">
-                        {uploadedHomeworkFile ? 'Upload Revised Notebook Photo' : 'Select or Drop Notebook Photo'}
-                      </span>
-                      <span className="text-[11px] text-slate-400 mt-1 text-center">
-                        Supports JPG, PNG or PDF up to 10MB
-                      </span>
-                      <input type="file" accept="image/*,.pdf" className="hidden" onChange={handleHomeworkUpload} />
-                    </label>
+                      {activeHw.teacherFeedback && (
+                        <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-xs space-y-1">
+                          <span className="font-bold text-emerald-900 flex items-center gap-1.5">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                            <span>Teacher Review Feedback:</span>
+                          </span>
+                          <p className="text-emerald-800">{activeHw.teacherFeedback}</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Right Column: Interactive Notebook Upload & Live Preview (5 cols) */}
+                    <div className="lg:col-span-5 bg-white p-6 sm:p-7 rounded-2xl border border-slate-200/80 shadow-sm space-y-4">
+                      <h4 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                        <Upload className="w-4 h-4 text-indigo-600" />
+                        <span>Upload Completed Notebook Photo</span>
+                      </h4>
+
+                      {activeHw.studentSubmissionUrl ? (
+                        <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-3">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
+                              <span className="text-xs font-bold text-emerald-900 truncate">
+                                {activeHw.submissionFileName || 'Notebook Submission'}
+                              </span>
+                            </div>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-200 text-emerald-800 shrink-0">
+                              {activeHw.status === 'REVIEWED' ? 'Reviewed' : 'Uploaded'}
+                            </span>
+                          </div>
+
+                          {!activeHw.studentSubmissionUrl.startsWith('data:application/pdf') && (
+                            <div
+                              onClick={() => setLightboxImage({ title: `${activeHw.title} — Your Notebook Submission`, src: activeHw.studentSubmissionUrl })}
+                              className="rounded-xl overflow-hidden border border-emerald-200 bg-white cursor-pointer hover:opacity-95"
+                            >
+                              <img
+                                src={activeHw.studentSubmissionUrl}
+                                alt="Student notebook submission"
+                                className="w-full max-h-48 object-contain"
+                              />
+                            </div>
+                          )}
+
+                          <p className="text-[11px] text-emerald-800 leading-relaxed">
+                            Saved securely to your assignment record for {activeHw.teacherName} to inspect. You can replace it anytime before review.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-200 text-amber-800 text-xs">
+                          No notebook photo uploaded yet. Take a clear photo of your handwritten notebook pages and upload below.
+                        </div>
+                      )}
+
+                      {/* Drag & Drop File Upload Area */}
+                      <label className={`border-2 border-dashed border-slate-200 hover:border-indigo-500 rounded-2xl p-6 flex flex-col items-center justify-center cursor-pointer transition-all bg-slate-50/50 hover:bg-indigo-50/20 group ${isUploadingHomework ? 'opacity-60 pointer-events-none' : ''}`}>
+                        <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mb-2 group-hover:scale-105 transition-transform">
+                          {isUploadingHomework ? (
+                            <div className="w-5 h-5 border-2 border-indigo-300 border-t-indigo-600 rounded-full animate-spin" />
+                          ) : (
+                            <Upload className="w-6 h-6 text-indigo-600" />
+                          )}
+                        </div>
+                        <span className="text-xs font-bold text-slate-800 group-hover:text-indigo-600 transition-colors text-center">
+                          {isUploadingHomework
+                            ? 'Uploading notebook photo...'
+                            : activeHw.studentSubmissionUrl
+                              ? 'Upload Revised Notebook Photo'
+                              : 'Select or Drop Notebook Photo'}
+                        </span>
+                        <span className="text-[11px] text-slate-400 mt-1 text-center">
+                          Supports JPG, PNG, WEBP, GIF or PDF up to 5 MB
+                        </span>
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp,image/gif,.pdf"
+                          className="hidden"
+                          onChange={(e) => handleStudentSubmitHomework(activeHw.id, e)}
+                        />
+                      </label>
+                    </div>
+
                   </div>
-
-                </div>
+                ) : (
+                  <div className="bg-white p-8 rounded-2xl border border-slate-200 text-center text-sm text-slate-500">
+                    No homework assignments have been posted yet. Check back after your next 1-on-1 class.
+                  </div>
+                )}
 
                 {/* Homework History & Practice Log Table */}
                 <div className="bg-white p-6 sm:p-7 rounded-2xl border border-slate-200/80 shadow-sm">
@@ -2421,7 +2708,8 @@ export default function DashboardPage() {
                 </div>
 
               </div>
-            )}
+              );
+            })()}
 
           </div>
         )}
@@ -2892,6 +3180,291 @@ export default function DashboardPage() {
             </div>
               </>
             )}
+
+            {/* Tab 4: Teacher Homework Assignments & Notebook Submission Review (#8) */}
+            {activeTab === 'TEACHER_HOMEWORK' && (() => {
+              const submittedQueue = homeworkList.filter(h => h.status === 'SUBMITTED');
+              const reviewedQueue = homeworkList.filter(h => h.status === 'REVIEWED');
+              const filteredHw = homeworkList.filter(h => hwFilterStatus === 'ALL' || h.status === hwFilterStatus);
+
+              return (
+                <div className="space-y-6 animate-fadeIn">
+                  {/* Top 3 KPI Summary Cards */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
+                      <span className="text-xs font-semibold text-slate-500">Total Assignments Posted</span>
+                      <div className="text-3xl font-extrabold text-slate-900 mt-1">{homeworkList.length}</div>
+                      <span className="text-[11px] text-indigo-600 font-bold mt-0.5 block">Synced with student portal</span>
+                    </div>
+                    <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
+                      <span className="text-xs font-semibold text-slate-500">Pending Teacher Review</span>
+                      <div className="text-3xl font-extrabold text-amber-600 mt-1">{submittedQueue.length}</div>
+                      <span className="text-[11px] text-slate-400 font-medium mt-0.5 block">Notebook photos awaiting feedback</span>
+                    </div>
+                    <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
+                      <span className="text-xs font-semibold text-slate-500">Reviewed &amp; Completed</span>
+                      <div className="text-3xl font-extrabold text-emerald-600 mt-1">{reviewedQueue.length}</div>
+                      <span className="text-[11px] text-slate-400 font-medium mt-0.5 block">Checked student submissions</span>
+                    </div>
+                  </div>
+
+                  {/* Form: Post New Homework & Attach Question Photo */}
+                  <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
+                    <h3 className="text-base font-bold text-slate-900 flex items-center gap-2 mb-4">
+                      <Upload className="w-4 h-4 text-indigo-600" />
+                      <span>Assign Homework with Question Sheet Photo</span>
+                    </h3>
+
+                    {homeworkUploadError && (
+                      <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-semibold flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
+                        <span>{homeworkUploadError}</span>
+                      </div>
+                    )}
+
+                    <form onSubmit={handleTeacherCreateHomework} className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-xs font-bold text-slate-700 block mb-1">Linked 1-on-1 Class Session</label>
+                          <select
+                            value={hwSessionId}
+                            onChange={(e) => setHwSessionId(e.target.value)}
+                            className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs bg-slate-50 font-medium focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          >
+                            {sessions.length === 0 ? (
+                              <option value="">General Assignment (Aryan Sharma)</option>
+                            ) : (
+                              sessions.map(s => (
+                                <option key={s.id} value={s.id}>
+                                  {s.studentName} &bull; {s.subject} ({s.date})
+                                </option>
+                              ))
+                            )}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="text-xs font-bold text-slate-700 block mb-1">Homework Title *</label>
+                          <input
+                            type="text"
+                            required
+                            value={hwTitle}
+                            onChange={(e) => setHwTitle(e.target.value)}
+                            placeholder="e.g. Quadratic Formula Worksheet Ex 4.3"
+                            className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
+                        <div className="md:col-span-7">
+                          <label className="text-xs font-bold text-slate-700 block mb-1">Instructions for Student</label>
+                          <textarea
+                            rows={4}
+                            value={hwDescription}
+                            onChange={(e) => setHwDescription(e.target.value)}
+                            placeholder="Write step-by-step instructions or specific textbook questions to solve..."
+                            className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          />
+                        </div>
+
+                        <div className="md:col-span-5">
+                          <label className="text-xs font-bold text-slate-700 block mb-1">Attach Question Sheet Photo (Optional)</label>
+                          {hwTeacherPhoto ? (
+                            <div className="p-3 rounded-xl bg-indigo-50 border border-indigo-200 space-y-2">
+                              <div className="flex items-center justify-between gap-2 text-xs">
+                                <span className="font-bold text-indigo-900 truncate">{hwTeacherPhoto.name}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => setHwTeacherPhoto(null)}
+                                  className="text-red-600 font-bold hover:underline shrink-0"
+                                >
+                                  Remove
+                                </button>
+                              </div>
+                              {!hwTeacherPhoto.dataUrl.startsWith('data:application/pdf') && (
+                                <img
+                                  src={hwTeacherPhoto.dataUrl}
+                                  alt="Question preview"
+                                  className="w-full h-24 object-contain bg-white rounded-lg border border-indigo-100"
+                                />
+                              )}
+                            </div>
+                          ) : (
+                            <label className="border-2 border-dashed border-slate-200 hover:border-indigo-500 rounded-xl p-4 flex flex-col items-center justify-center cursor-pointer transition-all bg-slate-50/50 hover:bg-indigo-50/20 text-center">
+                              <ImageIcon className="w-6 h-6 text-indigo-600 mb-1" />
+                              <span className="text-xs font-bold text-slate-700">Upload Questions Photo / PDF</span>
+                              <span className="text-[10px] text-slate-400 mt-0.5">JPG, PNG, WEBP or PDF up to 5 MB</span>
+                              <input
+                                type="file"
+                                accept="image/jpeg,image/png,image/webp,image/gif,.pdf"
+                                className="hidden"
+                                onChange={handleTeacherHomeworkPhotoSelect}
+                              />
+                            </label>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end">
+                        <button
+                          type="submit"
+                          disabled={isCreatingHomework}
+                          className="px-5 py-2.5 rounded-xl font-bold text-xs bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm flex items-center gap-2 transition-all"
+                        >
+                          <Plus className="w-4 h-4" />
+                          <span>{isCreatingHomework ? 'Posting Assignment...' : 'Post Homework Assignment'}</span>
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+
+                  {/* Submissions & Review Queue */}
+                  <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-sm space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                      <div>
+                        <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                          <span>Student Notebook Submissions &amp; Review</span>
+                        </h3>
+                        <p className="text-xs text-slate-500 mt-0.5">Inspect uploaded notebook photos side-by-side and send feedback.</p>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {[
+                          { key: 'ALL', label: 'All' },
+                          { key: 'SUBMITTED', label: 'Needs Review' },
+                          { key: 'PENDING', label: 'Waiting Student' },
+                          { key: 'REVIEWED', label: 'Reviewed' }
+                        ].map(tab => (
+                          <button
+                            key={tab.key}
+                            type="button"
+                            onClick={() => setHwFilterStatus(tab.key)}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                              hwFilterStatus === tab.key
+                                ? 'bg-indigo-600 text-white shadow-sm'
+                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                            }`}
+                          >
+                            {tab.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {filteredHw.length === 0 ? (
+                      <div className="py-8 text-center text-xs text-slate-400">
+                        No homework items match this filter.
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {filteredHw.map((hw) => (
+                          <div key={hw.id} className="p-5 rounded-2xl border border-slate-200 bg-slate-50/40 space-y-4">
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-extrabold text-slate-900">{hw.studentName}</span>
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                    {hw.subject}
+                                  </span>
+                                </div>
+                                <h4 className="text-sm font-bold text-slate-900 mt-1">{hw.title}</h4>
+                                {hw.description && <p className="text-xs text-slate-500 mt-0.5">{hw.description}</p>}
+                              </div>
+
+                              <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full border ${
+                                hw.status === 'REVIEWED'
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                  : hw.status === 'SUBMITTED'
+                                    ? 'bg-amber-50 text-amber-800 border-amber-200'
+                                    : 'bg-slate-100 text-slate-600 border-slate-200'
+                              }`}>
+                                {hw.status === 'REVIEWED'
+                                  ? '✓ Reviewed'
+                                  : hw.status === 'SUBMITTED'
+                                    ? 'Submitted (Needs Review)'
+                                    : 'Pending Student Upload'}
+                              </span>
+                            </div>
+
+                            {/* Side-by-Side Question vs Student Notebook Photos */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div className="p-3 rounded-xl bg-white border border-slate-200">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-2">
+                                  Assigned Question Sheet
+                                </span>
+                                {hw.teacherImageUrl ? (
+                                  hw.teacherImageUrl.startsWith('data:application/pdf') ? (
+                                    <a href={hw.teacherImageUrl} download={`${hw.title}.pdf`} className="text-xs font-bold text-indigo-600 underline">
+                                      Download PDF Worksheet
+                                    </a>
+                                  ) : (
+                                    <img
+                                      src={hw.teacherImageUrl}
+                                      alt="Question sheet"
+                                      onClick={() => setLightboxImage({ title: `${hw.title} — Question Sheet`, src: hw.teacherImageUrl })}
+                                      className="w-full h-40 object-contain rounded-lg cursor-pointer hover:opacity-90 border border-slate-100"
+                                    />
+                                  )
+                                ) : (
+                                  <span className="text-xs text-slate-400 italic">Text instructions only</span>
+                                )}
+                              </div>
+
+                              <div className="p-3 rounded-xl bg-white border border-slate-200">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-2">
+                                  Student Notebook Submission
+                                </span>
+                                {hw.studentSubmissionUrl ? (
+                                  hw.studentSubmissionUrl.startsWith('data:application/pdf') ? (
+                                    <a href={hw.studentSubmissionUrl} download="student-notebook.pdf" className="text-xs font-bold text-emerald-600 underline">
+                                      Download Student PDF
+                                    </a>
+                                  ) : (
+                                    <img
+                                      src={hw.studentSubmissionUrl}
+                                      alt="Student notebook submission"
+                                      onClick={() => setLightboxImage({ title: `${hw.studentName} — Notebook Submission`, src: hw.studentSubmissionUrl })}
+                                      className="w-full h-40 object-contain rounded-lg cursor-pointer hover:opacity-90 border border-emerald-100"
+                                    />
+                                  )
+                                ) : (
+                                  <div className="h-40 flex items-center justify-center text-xs text-slate-400 italic bg-slate-50 rounded-lg">
+                                    Student has not uploaded notebook photo yet
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Review Controls */}
+                            {(hw.status === 'SUBMITTED' || hw.status === 'REVIEWED') && (
+                              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-2 border-t border-slate-200/70">
+                                <input
+                                  type="text"
+                                  value={hwFeedbackInputs[hw.id] ?? hw.teacherFeedback ?? ''}
+                                  onChange={(e) => setHwFeedbackInputs(prev => ({ ...prev, [hw.id]: e.target.value }))}
+                                  placeholder="Add feedback note for student (optional)..."
+                                  className="flex-1 px-3 py-2 rounded-xl border border-slate-200 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => handleTeacherReviewHomework(hw.id, 'REVIEWED')}
+                                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition-all shrink-0"
+                                >
+                                  <Check className="w-3.5 h-3.5" />
+                                  <span>{hw.status === 'REVIEWED' ? 'Update Review' : 'Approve & Mark Reviewed'}</span>
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
 
           </div>
         )}
@@ -5395,6 +5968,40 @@ export default function DashboardPage() {
               </div>
             </form>
 
+          </div>
+        </div>
+      )}
+
+      {/* 🔍 Full-Screen Image Lightbox Modal (Homework Sheets & Notebook Submissions) */}
+      {lightboxImage && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn"
+          onClick={() => setLightboxImage(null)}
+        >
+          <div
+            className="bg-white rounded-3xl max-w-4xl w-full overflow-hidden shadow-2xl border border-slate-200 flex flex-col max-h-[90vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-2 min-w-0">
+                <ImageIcon className="w-4 h-4 text-indigo-600 shrink-0" />
+                <h3 className="text-sm font-bold text-slate-900 truncate">{lightboxImage.title}</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setLightboxImage(null)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4 bg-slate-100 flex-1 overflow-auto flex items-center justify-center">
+              <img
+                src={lightboxImage.src}
+                alt={lightboxImage.title}
+                className="max-w-full max-h-[75vh] object-contain rounded-xl bg-white shadow-sm"
+              />
+            </div>
           </div>
         </div>
       )}
