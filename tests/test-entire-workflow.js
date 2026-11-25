@@ -832,7 +832,19 @@ async function runTestSuite() {
     assert(submitHwRes.data?.homework?.status === 'SUBMITTED', 'Homework status updates to SUBMITTED upon student upload');
     assert(submitHwRes.data?.homework?.studentSubmissionUrl === sampleTinyPng, 'Student notebook submission URL stored');
 
-    // 15.7 Teacher reviews submission and adds feedback
+    // 15.7 Student removes accidental/unreviewed submission and re-submits
+    const removeHwRes = await request('DELETE', `/homework/${createdHwId}/submission`, null, studentToken);
+    assert(removeHwRes.status === 200, 'Student removes unreviewed homework photo cleanly (HTTP 200)');
+    assert(removeHwRes.data?.homework?.status === 'PENDING', 'Homework status resets to PENDING after removal');
+    assert(removeHwRes.data?.homework?.studentSubmissionUrl === null, 'Removed submission image cleared cleanly');
+
+    const resubmitHwRes = await request('POST', `/homework/${createdHwId}/submit`, {
+      imageData: sampleTinyPng,
+      fileName: 'aryan-notebook-final.png'
+    }, studentToken);
+    assert(resubmitHwRes.status === 200 && resubmitHwRes.data?.homework?.status === 'SUBMITTED', 'Student re-submits revised photo after removal');
+
+    // 15.8 Teacher reviews submission and adds feedback
     const reviewHwRes = await request('PATCH', `/homework/${createdHwId}/review`, {
       status: 'REVIEWED',
       feedback: 'Neat discriminant steps! Good job.'
@@ -840,6 +852,10 @@ async function runTestSuite() {
     assert(reviewHwRes.status === 200, 'Teacher reviews and approves student submission (HTTP 200)');
     assert(reviewHwRes.data?.homework?.status === 'REVIEWED', 'Homework status updates to REVIEWED');
     assert(reviewHwRes.data?.homework?.teacherFeedback === 'Neat discriminant steps! Good job.', 'Teacher feedback saved cleanly');
+
+    // 15.9 Removing an already-reviewed submission is blocked
+    const removeReviewedRes = await request('DELETE', `/homework/${createdHwId}/submission`, null, studentToken);
+    assert(removeReviewedRes.status === 400, 'Already reviewed submission cannot be removed (HTTP 400)');
 
     // -------------------------------------------------------------------------
     // 16. Automated Teardown of Temporary Test Users

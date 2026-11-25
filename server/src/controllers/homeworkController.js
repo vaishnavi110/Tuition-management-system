@@ -372,9 +372,73 @@ const reviewHomeworkSubmission = async (req, res) => {
   });
 };
 
+// DELETE /api/homework/:id/submission
+// Student removes/withdraws an unreviewed notebook submission
+const removeHomeworkSubmission = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const existing = await prisma.homework.findUnique({ where: { id } });
+    if (existing) {
+      if (existing.status === 'REVIEWED') {
+        return res.status(400).json({ error: 'Cannot remove a submission that has already been reviewed.' });
+      }
+      const updated = await prisma.homework.update({
+        where: { id },
+        data: {
+          studentSubmissionUrl: null,
+          status: 'PENDING',
+          submittedAt: null
+        },
+        include: {
+          session: {
+            include: {
+              teacher: { include: { user: true } },
+              student: { include: { user: true, grade: true } }
+            }
+          }
+        }
+      });
+
+      const formatted = formatDbHomework(updated);
+      formatted.submissionFileName = null;
+      const memIdx = HOMEWORK_ITEMS.findIndex(h => h.id === id);
+      if (memIdx !== -1) HOMEWORK_ITEMS[memIdx] = formatted;
+
+      return res.json({
+        success: true,
+        message: 'Homework submission removed.',
+        homework: formatted
+      });
+    }
+  } catch (err) {
+    console.warn('Prisma removeHomeworkSubmission notice:', err.message);
+  }
+
+  const target = HOMEWORK_ITEMS.find(h => h.id === id);
+  if (!target) {
+    return res.status(404).json({ error: 'Homework assignment not found' });
+  }
+  if (target.status === 'REVIEWED') {
+    return res.status(400).json({ error: 'Cannot remove a submission that has already been reviewed.' });
+  }
+
+  target.studentSubmissionUrl = null;
+  target.submissionFileName = null;
+  target.status = 'PENDING';
+  target.submittedAt = null;
+
+  res.json({
+    success: true,
+    message: 'Homework submission removed.',
+    homework: target
+  });
+};
+
 module.exports = {
   getHomeworkList,
   createHomework,
   submitHomeworkSolution,
-  reviewHomeworkSubmission
+  reviewHomeworkSubmission,
+  removeHomeworkSubmission
 };
