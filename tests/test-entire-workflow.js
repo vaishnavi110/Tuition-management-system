@@ -690,9 +690,95 @@ async function runTestSuite() {
     assert(Boolean(myInvoiceRes.data?.invoice), 'Student invoice statement returned');
 
     // -------------------------------------------------------------------------
-    // 14. Automated Teardown of Temporary Test Users
+    // 14. Razorpay Payment Gateway, Invoice Settlement & Webhook Suite (#7)
     // -------------------------------------------------------------------------
-    console.log('\n--- 14. Automated Teardown of Temporary Test Users ---');
+    console.log('\n--- 14. Razorpay Payment Gateway, Invoice Settlement & Webhook Suite (#7) ---');
+
+    // 14.1 Check payment config responds cleanly even without live KYC keys
+    const payConfigRes = await request('GET', '/payment/config');
+    assert(payConfigRes.status === 200, 'Payment config endpoint responds with HTTP 200');
+    assert(payConfigRes.data.success === true, 'Payment config indicates success');
+    assert(typeof payConfigRes.data.hasValidKeys === 'boolean', 'Config exposes hasValidKeys flag for sandbox fallback');
+    assert(payConfigRes.data.currency === 'INR', 'Config currency is INR');
+
+    // 14.2 Create Razorpay / Sandbox order
+    const createOrderRes = await request('POST', '/payment/create-order', {
+      amount: 1000,
+      studentName: 'Aryan Sharma',
+      receiptId: 'INV-202611-001',
+      month: 11,
+      year: 2026
+    }, studentToken);
+    assert(createOrderRes.status === 201, 'Razorpay order created cleanly (HTTP 201)');
+    assert(Boolean(createOrderRes.data?.order?.id), 'Created order has an order ID');
+    assert(createOrderRes.data.order.amount === 100000, 'Order amount is converted to 100000 paise (Rs. 1000)');
+
+    // 14.3 Verify payment and confirm student invoice is persisted as PAID
+    const testOrderId = createOrderRes.data.order.id;
+    const testPayId = `pay_test_${Date.now().toString(36).toUpperCase()}`;
+    const verifyPayRes = await request('POST', '/payment/verify', {
+      orderId: testOrderId,
+      paymentId: testPayId,
+      amount: 1000,
+      paymentMethod: 'UPI',
+      studentName: 'Aryan Sharma',
+      month: 11,
+      year: 2026
+    }, studentToken);
+    assert(verifyPayRes.status === 200, 'Payment verification endpoint responds with HTTP 200');
+    assert(verifyPayRes.data?.payment?.status === 'PAID', 'Payment status confirmed as PAID');
+    assert(verifyPayRes.data?.invoice?.status === 'PAID', 'Student invoice immediately updated to PAID');
+    assert(verifyPayRes.data?.invoice?.razorpayPaymentId === testPayId, 'Persisted invoice stores exact Razorpay Payment ID for digital receipt');
+
+    // 14.4 Confirm /api/billing/my-invoice reflects persistent PAID status across reloads
+    const paidStudentInvRes = await request('GET', '/billing/my-invoice', null, studentToken);
+    assert(paidStudentInvRes.status === 200, 'Student reloads monthly invoice after payment');
+    assert(paidStudentInvRes.data?.invoice?.status === 'PAID', 'Reloaded student invoice remains PAID');
+    assert(paidStudentInvRes.data?.invoice?.razorpayPaymentId === testPayId, 'Reloaded student invoice retains digital receipt Payment ID');
+
+    // 14.5 Reset demo invoice back to UNPAID cleanly
+    const resetDemoRes = await request('POST', '/payment/reset-demo', {
+      studentName: 'Aryan Sharma',
+      month: 11,
+      year: 2026
+    }, studentToken);
+    assert(resetDemoRes.status === 200, 'Demo invoice reset endpoint responds with HTTP 200');
+
+    // 14.6 Razorpay Webhook listener (payment.captured) automatically marks invoice as PAID
+    const webhookPayId = `pay_wh_${Date.now().toString(36).toUpperCase()}`;
+    const webhookRes = await request('POST', '/payment/webhook', {
+      event: 'payment.captured',
+      payload: {
+        payment: {
+          entity: {
+            id: webhookPayId,
+            order_id: testOrderId,
+            amount: 100000,
+            method: 'upi',
+            notes: {
+              studentName: 'Aryan Sharma',
+              month: '11',
+              year: '2026'
+            }
+          }
+        }
+      }
+    });
+    assert(webhookRes.status === 200, 'Razorpay webhook listener responds with HTTP 200');
+    assert(webhookRes.data.handled === true, 'Webhook handled payment.captured event');
+    assert(webhookRes.data.invoiceStatus === 'PAID', 'Webhook automatically settled student invoice as PAID');
+
+    // Reset again so demo environment stays clean for initial walkthrough
+    await request('POST', '/payment/reset-demo', {
+      studentName: 'Aryan Sharma',
+      month: 11,
+      year: 2026
+    }, studentToken);
+
+    // -------------------------------------------------------------------------
+    // 15. Automated Teardown of Temporary Test Users
+    // -------------------------------------------------------------------------
+    console.log('\n--- 15. Automated Teardown of Temporary Test Users ---');
     let cleanupSuccess = 0;
     for (const userId of createdTestUserIds) {
       try {
