@@ -412,5 +412,6 @@ const getAllLogs = async (req, res) => {
 module.exports = {
   submitClassLog,
   getMonthlySummary,
-  getAllLogs
+  getAllLogs,
+  CLASS_LOGS
 };

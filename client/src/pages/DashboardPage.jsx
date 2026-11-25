@@ -138,6 +138,16 @@ export default function DashboardPage() {
   const [gradeFilter, setGradeFilter] = useState('ALL');
   const [auditProofFilter, setAuditProofFilter] = useState('ALL');
 
+  // 💰 Admin Automated Invoicing & Teacher Payroll state (Issue #6)
+  const [adminInvoices, setAdminInvoices] = useState([]);
+  const [adminPayroll, setAdminPayroll] = useState([]);
+  const [billingSummary, setBillingSummary] = useState(null);
+  const [billingSubTab, setBillingSubTab] = useState('INVOICES'); // 'INVOICES' | 'PAYROLL'
+  const [invoiceStatusFilter, setInvoiceStatusFilter] = useState('ALL'); // 'ALL' | 'PAID' | 'UNPAID'
+  const [invoiceSearchQuery, setInvoiceSearchQuery] = useState('');
+  const [selectedInvoiceModal, setSelectedInvoiceModal] = useState(null);
+  const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
+
   // Admin Academy Directory state (Students & Teachers Roster)
   const [adminDirectory, setAdminDirectory] = useState({
     students: [],
@@ -527,12 +537,15 @@ export default function DashboardPage() {
         }
       }
 
-      // Fetch full Academy Directory and Invitation Codes if Admin
+      // Fetch full Academy Directory, Invitation Codes, and Billing Data if Admin
       if (user?.role === 'ADMIN') {
         try {
-          const [adminUsersRes, adminInvitesRes] = await Promise.all([
+          const [adminUsersRes, adminInvitesRes, billingSumRes, invoicesRes, payrollRes] = await Promise.all([
             axios.get('/api/admin/users').catch(() => ({ data: null })),
-            axios.get('/api/admin/invites').catch(() => ({ data: null }))
+            axios.get('/api/admin/invites').catch(() => ({ data: null })),
+            axios.get('/api/billing/summary').catch(() => ({ data: null })),
+            axios.get('/api/billing/invoices').catch(() => ({ data: null })),
+            axios.get('/api/billing/payroll').catch(() => ({ data: null }))
           ]);
           if (adminUsersRes?.data?.success) {
             setAdminDirectory(adminUsersRes.data);
@@ -540,8 +553,17 @@ export default function DashboardPage() {
           if (adminInvitesRes?.data?.invites) {
             setGeneratedInviteList(adminInvitesRes.data.invites);
           }
+          if (billingSumRes?.data?.metrics) {
+            setBillingSummary(billingSumRes.data.metrics);
+          }
+          if (invoicesRes?.data?.invoices) {
+            setAdminInvoices(invoicesRes.data.invoices);
+          }
+          if (payrollRes?.data?.payroll) {
+            setAdminPayroll(payrollRes.data.payroll);
+          }
         } catch (e) {
-          console.warn('Admin users/invites directory fetch notice:', e);
+          console.warn('Admin users/invites/billing directory fetch notice:', e);
         }
       }
     } catch (err) {
@@ -1028,6 +1050,7 @@ export default function DashboardPage() {
     }
     if (role === 'ADMIN') {
       if (activeTab === 'OVERVIEW') return 'Academy Overview';
+      if (activeTab === 'BILLING') return 'Fee Invoicing & Teacher Payroll';
       if (activeTab === 'DIRECTORY') return 'Academy Directory';
       if (activeTab === 'INVITES') return 'Teacher & Staff Invites';
       if (activeTab === 'LOGS_AUDIT') return 'Lecture Quality & Class Logs Audit';
@@ -1224,6 +1247,18 @@ export default function DashboardPage() {
               >
                 <Users className="w-4 h-4 shrink-0" />
                 <span>Academy Directory</span>
+              </button>
+
+              <button
+                onClick={() => { setActiveTab('BILLING'); setIsMobileMenuOpen(false); }}
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === 'BILLING'
+                    ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-200'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                }`}
+              >
+                <CreditCard className="w-4 h-4 shrink-0" />
+                <span>Fee Billing &amp; Payroll</span>
               </button>
 
               <button
@@ -3781,6 +3816,306 @@ export default function DashboardPage() {
               );
             })()}
 
+            {/* Tab: Automated Monthly Fee Invoicing & Teacher Payroll (Issue #6) */}
+            {activeTab === 'BILLING' && (() => {
+              const totalInv = billingSummary?.totalInvoiced ?? adminInvoices.reduce((s, i) => s + i.totalAmount, 0);
+              const totalCol = billingSummary?.totalCollected ?? adminInvoices.filter(i => i.status === 'PAID').reduce((s, i) => s + i.totalAmount, 0);
+              const totalOut = billingSummary?.totalOutstanding ?? adminInvoices.filter(i => i.status === 'UNPAID').reduce((s, i) => s + i.totalAmount, 0);
+              const totalPay = billingSummary?.totalPayroll ?? adminPayroll.reduce((s, p) => s + p.totalPayoutAmount, 0);
+
+              const filteredInvoices = adminInvoices.filter(inv => {
+                const q = invoiceSearchQuery.toLowerCase().trim();
+                const matchesSearch = !q ||
+                  inv.studentName?.toLowerCase().includes(q) ||
+                  inv.parentName?.toLowerCase().includes(q) ||
+                  inv.grade?.toLowerCase().includes(q) ||
+                  inv.invoiceNumber?.toLowerCase().includes(q);
+
+                const matchesStatus = 
+                  invoiceStatusFilter === 'ALL' ||
+                  inv.status?.toUpperCase() === invoiceStatusFilter.toUpperCase();
+
+                return matchesSearch && matchesStatus;
+              });
+
+              const filteredPayroll = adminPayroll.filter(p => {
+                const q = invoiceSearchQuery.toLowerCase().trim();
+                return !q ||
+                  p.teacherName?.toLowerCase().includes(q) ||
+                  p.subject?.toLowerCase().includes(q) ||
+                  p.payrollNumber?.toLowerCase().includes(q);
+              });
+
+              return (
+                <div className="space-y-6 animate-fadeIn">
+                  {/* Top Executive KPI Cards */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm flex items-center justify-between">
+                      <div>
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Total Fees Invoiced</span>
+                        <div className="text-2xl font-black text-slate-900 mt-1">₹{totalInv.toLocaleString('en-IN')}</div>
+                        <span className="text-xs text-slate-500 mt-0.5 block">{adminInvoices.length} Student invoices</span>
+                      </div>
+                      <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
+                        <FileText className="w-6 h-6" />
+                      </div>
+                    </div>
+
+                    <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm flex items-center justify-between">
+                      <div>
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Fees Collected</span>
+                        <div className="text-2xl font-black text-emerald-600 mt-1">₹{totalCol.toLocaleString('en-IN')}</div>
+                        <span className="text-xs text-slate-500 mt-0.5 block">{adminInvoices.filter(i => i.status === 'PAID').length} Invoices settled (Paid)</span>
+                      </div>
+                      <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600">
+                        <CheckCircle2 className="w-6 h-6" />
+                      </div>
+                    </div>
+
+                    <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm flex items-center justify-between">
+                      <div>
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Outstanding Due</span>
+                        <div className="text-2xl font-black text-rose-600 mt-1">₹{totalOut.toLocaleString('en-IN')}</div>
+                        <span className="text-xs text-slate-500 mt-0.5 block">{adminInvoices.filter(i => i.status === 'UNPAID').length} Pending collection</span>
+                      </div>
+                      <div className="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-600">
+                        <AlertCircle className="w-6 h-6" />
+                      </div>
+                    </div>
+
+                    <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm flex items-center justify-between">
+                      <div>
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Teacher Payroll</span>
+                        <div className="text-2xl font-black text-purple-600 mt-1">₹{totalPay.toLocaleString('en-IN')}</div>
+                        <span className="text-xs text-slate-500 mt-0.5 block">{adminPayroll.length} Faculty payouts accrued</span>
+                      </div>
+                      <div className="w-12 h-12 rounded-2xl bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-600">
+                        <Users className="w-6 h-6" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Billing Module Console Card */}
+                  <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
+                    {/* Header & Sub-Tab Bar */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-slate-100">
+                      <div>
+                        <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                          <CreditCard className="w-4 h-4 text-indigo-600" />
+                          Automated Fee Invoicing &amp; Teacher Payroll
+                        </h3>
+                        <p className="text-xs text-slate-500 mt-0.5">Calculated automatically from verified teaching hours: Hours &times; Grade Standard Rates.</p>
+                      </div>
+
+                      {/* Sub-tab Switcher */}
+                      <div className="flex items-center p-1 bg-slate-100 rounded-xl">
+                        <button
+                          onClick={() => setBillingSubTab('INVOICES')}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                            billingSubTab === 'INVOICES'
+                              ? 'bg-white text-indigo-700 shadow-sm'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          <span>Student Fee Invoices</span>
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                            billingSubTab === 'INVOICES' ? 'bg-indigo-50 text-indigo-700' : 'bg-slate-200 text-slate-600'
+                          }`}>
+                            {adminInvoices.length}
+                          </span>
+                        </button>
+                        <button
+                          onClick={() => setBillingSubTab('PAYROLL')}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                            billingSubTab === 'PAYROLL'
+                              ? 'bg-white text-indigo-700 shadow-sm'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          <span>Teacher Payroll Report</span>
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                            billingSubTab === 'PAYROLL' ? 'bg-indigo-50 text-indigo-700' : 'bg-slate-200 text-slate-600'
+                          }`}>
+                            {adminPayroll.length}
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Filter and Search Bar */}
+                    <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                      <div className="relative">
+                        <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="text"
+                          placeholder={billingSubTab === 'INVOICES' ? 'Search student, parent, invoice...' : 'Search teacher or subject...'}
+                          value={invoiceSearchQuery}
+                          onChange={(e) => setInvoiceSearchQuery(e.target.value)}
+                          className="pl-8 pr-3 py-1.5 rounded-xl border border-slate-200 text-xs w-60 bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        />
+                      </div>
+
+                      {billingSubTab === 'INVOICES' && (
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={invoiceStatusFilter}
+                            onChange={(e) => setInvoiceStatusFilter(e.target.value)}
+                            className="px-2.5 py-1.5 rounded-xl border border-slate-200 text-xs bg-slate-50 font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          >
+                            <option value="ALL">All Invoices</option>
+                            <option value="PAID">🟢 Paid Invoices</option>
+                            <option value="UNPAID">🔴 Unpaid / Due</option>
+                          </select>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Content: Student Invoices Table */}
+                    {billingSubTab === 'INVOICES' && (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-sm">
+                          <thead>
+                            <tr className="border-b border-slate-200 text-xs uppercase tracking-wider text-slate-400">
+                              <th className="py-2.5">Invoice #</th>
+                              <th className="py-2.5">Student &amp; Grade</th>
+                              <th className="py-2.5">Parent Contact</th>
+                              <th className="py-2.5">Attended Hours</th>
+                              <th className="py-2.5">Rate / Hour</th>
+                              <th className="py-2.5">Total Amount</th>
+                              <th className="py-2.5">Payment Status</th>
+                              <th className="py-2.5 text-right pr-2">Action</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {filteredInvoices.length === 0 ? (
+                              <tr>
+                                <td colSpan={8} className="py-8 text-center text-xs text-slate-400">
+                                  No invoices match your search or filter.
+                                </td>
+                              </tr>
+                            ) : (
+                              filteredInvoices.map((inv) => (
+                                <tr key={inv.id} className="hover:bg-slate-50/60 transition-colors">
+                                  <td className="py-3 text-xs">
+                                    <div className="font-bold text-slate-900 font-mono">{inv.invoiceNumber}</div>
+                                    <div className="text-[10px] text-slate-400">{inv.monthName}</div>
+                                  </td>
+                                  <td className="py-3 text-xs">
+                                    <div className="font-bold text-slate-800">{inv.studentName}</div>
+                                    <div className="text-[10px] text-slate-500">{inv.grade}</div>
+                                  </td>
+                                  <td className="py-3 text-xs">
+                                    <div className="font-medium text-slate-700">{inv.parentName}</div>
+                                    <div className="text-[10px] text-slate-400">{inv.parentPhone || inv.studentPhone}</div>
+                                  </td>
+                                  <td className="py-3 text-xs">
+                                    <span className="font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
+                                      {inv.attendedHours} hrs
+                                    </span>
+                                    <span className="text-[10px] text-slate-400 block mt-0.5">{inv.completedClassesCount} classes</span>
+                                  </td>
+                                  <td className="py-3 text-xs font-semibold text-slate-600">
+                                    ₹{inv.hourlyRate}/hr
+                                  </td>
+                                  <td className="py-3 text-xs font-extrabold text-slate-900">
+                                    ₹{inv.totalAmount.toLocaleString('en-IN')}
+                                  </td>
+                                  <td className="py-3 text-xs">
+                                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold border ${
+                                      inv.status === 'PAID'
+                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                        : 'bg-rose-50 text-rose-700 border-rose-200'
+                                    }`}>
+                                      <span className={`w-1.5 h-1.5 rounded-full ${inv.status === 'PAID' ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
+                                      <span>{inv.status === 'PAID' ? 'Paid' : 'Unpaid / Due'}</span>
+                                    </span>
+                                  </td>
+                                  <td className="py-3 text-xs text-right pr-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => { setSelectedInvoiceModal(inv); setIsInvoiceModalOpen(true); }}
+                                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-all shadow-xs"
+                                    >
+                                      <FileText className="w-3.5 h-3.5" />
+                                      <span>View Invoice</span>
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+
+                    {/* Content: Teacher Payroll Table */}
+                    {billingSubTab === 'PAYROLL' && (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-sm">
+                          <thead>
+                            <tr className="border-b border-slate-200 text-xs uppercase tracking-wider text-slate-400">
+                              <th className="py-2.5">Payroll #</th>
+                              <th className="py-2.5">Teacher / Faculty</th>
+                              <th className="py-2.5">Subject Department</th>
+                              <th className="py-2.5">Classes Delivered</th>
+                              <th className="py-2.5">Taught Hours</th>
+                              <th className="py-2.5">Payout Rate</th>
+                              <th className="py-2.5">Total Accrued Payout</th>
+                              <th className="py-2.5 text-right pr-2">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {filteredPayroll.length === 0 ? (
+                              <tr>
+                                <td colSpan={8} className="py-8 text-center text-xs text-slate-400">
+                                  No teacher payroll records match your search.
+                                </td>
+                              </tr>
+                            ) : (
+                              filteredPayroll.map((pay) => (
+                                <tr key={pay.id} className="hover:bg-slate-50/60 transition-colors">
+                                  <td className="py-3 text-xs font-mono font-bold text-slate-900">
+                                    {pay.payrollNumber}
+                                  </td>
+                                  <td className="py-3 text-xs">
+                                    <div className="font-bold text-slate-900">{pay.teacherName}</div>
+                                    <div className="text-[10px] text-slate-400">{pay.teacherPhone || pay.teacherEmail}</div>
+                                  </td>
+                                  <td className="py-3 text-xs">
+                                    <span className="font-medium text-slate-800">{pay.subject}</span>
+                                  </td>
+                                  <td className="py-3 text-xs font-bold text-slate-700">
+                                    {pay.classesCount} classes
+                                  </td>
+                                  <td className="py-3 text-xs">
+                                    <span className="font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-200">
+                                      {pay.taughtHours} hrs
+                                    </span>
+                                  </td>
+                                  <td className="py-3 text-xs text-slate-600 font-medium">
+                                    ₹250 - ₹350/hr
+                                  </td>
+                                  <td className="py-3 text-xs font-extrabold text-emerald-600 text-sm">
+                                    ₹{pay.totalPayoutAmount.toLocaleString('en-IN')}
+                                  </td>
+                                  <td className="py-3 text-xs text-right pr-2">
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                                      <CheckCircle2 className="w-3 h-3 text-blue-600" />
+                                      <span>Calculated</span>
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Tab 6: Configurable Grade Rate Cards Matrix */}
             {activeTab === 'RATES' && (
             <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
@@ -4169,6 +4504,112 @@ export default function DashboardPage() {
               >
                 <Printer className="w-3.5 h-3.5" />
                 <span>Print / Save as PDF</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 📄 Official Itemized Invoice Modal for Admin */}
+      {isInvoiceModalOpen && selectedInvoiceModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 border border-slate-200 shadow-2xl relative">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center">
+                  <CreditCard className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-900 text-base">TuitionHub Coaching Academy</h3>
+                  <span className="text-[10px] text-indigo-700 font-mono font-semibold">Official Student Fee Invoice</span>
+                </div>
+              </div>
+              <button onClick={() => setIsInvoiceModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="py-5 space-y-4 text-xs">
+              <div className="grid grid-cols-2 gap-4 p-3.5 rounded-xl bg-slate-50 border border-slate-100">
+                <div>
+                  <span className="text-slate-400 text-[10px] uppercase font-bold block">Invoice To Student</span>
+                  <span className="font-bold text-slate-900 text-sm block mt-0.5">{selectedInvoiceModal.studentName}</span>
+                  <span className="text-slate-500 block">{selectedInvoiceModal.grade}</span>
+                  <span className="text-slate-400 text-[11px] block mt-1">Parent: {selectedInvoiceModal.parentName} ({selectedInvoiceModal.parentPhone || 'Phone on file'})</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-slate-400 text-[10px] uppercase font-bold block">Invoice Number</span>
+                  <span className="font-mono font-bold text-slate-900 text-sm block mt-0.5">{selectedInvoiceModal.invoiceNumber}</span>
+                  <span className="text-slate-500 block">Period: {selectedInvoiceModal.monthName}</span>
+                  <div className="mt-1">
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold border ${
+                      selectedInvoiceModal.status === 'PAID'
+                        ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                        : 'bg-rose-50 text-rose-800 border-rose-200'
+                    }`}>
+                      {selectedInvoiceModal.status === 'PAID' ? '✓ STATUS: PAID' : '⚠️ STATUS: UNPAID / DUE'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Itemized Table */}
+              <div className="border border-slate-200 rounded-xl overflow-hidden">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-100/70 border-b border-slate-200 text-slate-600 font-bold">
+                    <tr>
+                      <th className="py-2.5 px-3">Service Description</th>
+                      <th className="py-2.5 px-3">Attended Hours</th>
+                      <th className="py-2.5 px-3">Hourly Rate</th>
+                      <th className="py-2.5 px-3 text-right">Total Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    <tr>
+                      <td className="py-3 px-3">
+                        <div className="font-bold text-slate-900">1-on-1 Academic Tuition &amp; Mentorship</div>
+                        <div className="text-[10px] text-slate-400">{selectedInvoiceModal.completedClassesCount} verified classes completed</div>
+                      </td>
+                      <td className="py-3 px-3 font-semibold text-slate-700">
+                        {selectedInvoiceModal.attendedHours} hrs
+                      </td>
+                      <td className="py-3 px-3 font-semibold text-slate-700">
+                        ₹{selectedInvoiceModal.hourlyRate}
+                      </td>
+                      <td className="py-3 px-3 text-right font-extrabold text-slate-900">
+                        ₹{selectedInvoiceModal.totalAmount.toLocaleString('en-IN')}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-indigo-50/50 border border-indigo-100 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-indigo-900 block">Net Fee Amount Due</span>
+                  <span className="text-[11px] text-indigo-700">Calculated strictly as Attended Hours &times; Standard Rate</span>
+                </div>
+                <div className="text-xl font-black text-indigo-700">
+                  ₹{selectedInvoiceModal.totalAmount.toLocaleString('en-IN')}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setIsInvoiceModalOpen(false)}
+                className="px-4 py-2 rounded-xl text-xs font-bold border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-1.5 transition-colors shadow-sm"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                <span>Print Official Invoice</span>
               </button>
             </div>
           </div>

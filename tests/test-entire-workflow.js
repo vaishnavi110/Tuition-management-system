@@ -628,9 +628,71 @@ async function runTestSuite() {
     assert(logsWithRecording.length >= 0, 'Admin can filter logs by recording proof status');
 
     // -------------------------------------------------------------------------
-    // 13. Automated Teardown of Temporary Test Users
+    // 13. Automated Monthly Fee Invoicing & Teacher Payroll Suite (#6)
     // -------------------------------------------------------------------------
-    console.log('\n--- 13. Automated Teardown of Temporary Test Users ---');
+    console.log('\n--- 13. Automated Monthly Fee Invoicing & Teacher Payroll Suite (#6) ---');
+
+    // 13.1 RBAC: Unauthenticated access to billing invoices is strictly blocked
+    const unauthBillingRes = await request('GET', '/billing/invoices');
+    assert(unauthBillingRes.status === 401, 'Unauthenticated request to /api/billing/invoices is blocked (HTTP 401)');
+
+    // 13.2 RBAC: Student access to admin billing invoices is strictly forbidden
+    const studentBillingRes = await request('GET', '/billing/invoices', null, studentToken);
+    assert(studentBillingRes.status === 403, 'Student access to admin billing invoices is strictly forbidden (HTTP 403)');
+
+    // 13.3 Admin fetches billing executive summary
+    const adminBillingSumRes = await request('GET', '/billing/summary', null, adminToken);
+    assert(adminBillingSumRes.status === 200, 'Admin fetches billing executive summary (HTTP 200)');
+    assert(Boolean(adminBillingSumRes.data?.metrics), 'Summary response contains metrics object');
+    assert(typeof adminBillingSumRes.data.metrics.totalInvoiced === 'number', 'Metrics includes numeric totalInvoiced');
+    assert(typeof adminBillingSumRes.data.metrics.totalPayroll === 'number', 'Metrics includes numeric totalPayroll');
+    assert(typeof adminBillingSumRes.data.metrics.academyNetMargin === 'number', 'Metrics includes numeric academyNetMargin');
+
+    // 13.4 Admin fetches all student fee invoices
+    const adminInvoicesRes = await request('GET', '/billing/invoices', null, adminToken);
+    assert(adminInvoicesRes.status === 200, 'Admin fetches all student fee invoices (HTTP 200)');
+    assert(Array.isArray(adminInvoicesRes.data.invoices), 'Invoices response returns array of invoices');
+    assert(adminInvoicesRes.data.invoices.length > 0, 'At least 1 student invoice generated in billing cycle');
+
+    const sampleInvoice = adminInvoicesRes.data.invoices[0];
+    assert(Boolean(sampleInvoice.invoiceNumber), 'Invoice has official invoiceNumber (e.g. INV-202611-001)');
+    assert(Boolean(sampleInvoice.studentName), 'Invoice includes studentName');
+    assert(typeof sampleInvoice.attendedHours === 'number', 'Invoice includes numeric attendedHours');
+    assert(typeof sampleInvoice.hourlyRate === 'number', 'Invoice includes numeric hourlyRate');
+    assert(typeof sampleInvoice.totalAmount === 'number', 'Invoice includes calculated totalAmount');
+    assert(sampleInvoice.status === 'PAID' || sampleInvoice.status === 'UNPAID', 'Invoice status is either PAID or UNPAID');
+    assert(sampleInvoice.totalAmount === Math.round(sampleInvoice.attendedHours * sampleInvoice.hourlyRate), 'Invoice total strictly matches Attended Hours x Grade Rate');
+
+    // 13.5 Admin filters invoices by payment status
+    const paidInvoicesRes = await request('GET', '/billing/invoices?status=PAID', null, adminToken);
+    assert(paidInvoicesRes.status === 200, 'Admin filters invoices by status=PAID (HTTP 200)');
+    assert(paidInvoicesRes.data.invoices.every(i => i.status === 'PAID'), 'All returned invoices have status PAID');
+
+    const unpaidInvoicesRes = await request('GET', '/billing/invoices?status=UNPAID', null, adminToken);
+    assert(unpaidInvoicesRes.status === 200, 'Admin filters invoices by status=UNPAID (HTTP 200)');
+    assert(unpaidInvoicesRes.data.invoices.every(i => i.status === 'UNPAID'), 'All returned invoices have status UNPAID');
+
+    // 13.6 Admin fetches teacher payroll report
+    const adminPayrollRes = await request('GET', '/billing/payroll', null, adminToken);
+    assert(adminPayrollRes.status === 200, 'Admin fetches teacher payroll report (HTTP 200)');
+    assert(Array.isArray(adminPayrollRes.data.payroll), 'Payroll response returns array of teacher records');
+    assert(adminPayrollRes.data.payroll.length > 0, 'At least 1 teacher payroll record generated');
+
+    const samplePayroll = adminPayrollRes.data.payroll[0];
+    assert(Boolean(samplePayroll.payrollNumber), 'Payroll record has payrollNumber');
+    assert(Boolean(samplePayroll.teacherName), 'Payroll record includes teacherName');
+    assert(typeof samplePayroll.taughtHours === 'number', 'Payroll record includes taughtHours');
+    assert(typeof samplePayroll.totalPayoutAmount === 'number', 'Payroll record includes totalPayoutAmount');
+
+    // 13.7 Logged-in student fetches their official fee invoice statement
+    const myInvoiceRes = await request('GET', '/billing/my-invoice', null, studentToken);
+    assert(myInvoiceRes.status === 200, 'Student fetches personal monthly invoice statement (HTTP 200)');
+    assert(Boolean(myInvoiceRes.data?.invoice), 'Student invoice statement returned');
+
+    // -------------------------------------------------------------------------
+    // 14. Automated Teardown of Temporary Test Users
+    // -------------------------------------------------------------------------
+    console.log('\n--- 14. Automated Teardown of Temporary Test Users ---');
     let cleanupSuccess = 0;
     for (const userId of createdTestUserIds) {
       try {

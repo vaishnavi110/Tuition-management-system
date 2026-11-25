@@ -10,6 +10,7 @@ const attendanceRoutes = require('./routes/attendanceRoutes');
 const logRoutes = require('./routes/logRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
+const billingRoutes = require('./routes/billingRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -25,6 +26,7 @@ app.use('/api/attendance', attendanceRoutes);
 app.use('/api/logs', logRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/payment', paymentRoutes);
+app.use('/api/billing', billingRoutes);
 
 // Base Health Check Route
 app.get('/api/health', (req, res) => {
