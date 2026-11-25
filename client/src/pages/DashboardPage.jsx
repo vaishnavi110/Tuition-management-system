@@ -3334,7 +3334,7 @@ export default function DashboardPage() {
                         {[
                           { key: 'ALL', label: 'All' },
                           { key: 'SUBMITTED', label: 'Needs Review' },
-                          { key: 'PENDING', label: 'Waiting Student' },
+                          { key: 'PENDING', label: 'Not Submitted Yet' },
                           { key: 'REVIEWED', label: 'Reviewed' }
                         ].map(tab => (
                           <button
