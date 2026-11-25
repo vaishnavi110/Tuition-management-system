@@ -357,11 +357,30 @@ export default function RegisterPage() {
                       onChange={(e) => setGrade(e.target.value)}
                       className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold bg-white"
                     >
-                      <option value="Grade 8">Grade 8 (₹350 per hour)</option>
-                      <option value="Grade 9">Grade 9 (₹350 per hour)</option>
-                      <option value="Grade 10 (Board)">Grade 10 Board Exam (₹400 per hour)</option>
-                      <option value="Grade 11 (Science)">Grade 11 Science/JEE/NEET (₹600 per hour)</option>
-                      <option value="Grade 12 (Board)">Grade 12 Board/Entrance (₹600 per hour)</option>
+                      <optgroup label="Pre-Primary (Default ₹250/hr)">
+                        <option value="LKG">LKG (₹250 per hour)</option>
+                        <option value="UKG">UKG (₹250 per hour)</option>
+                      </optgroup>
+                      <optgroup label="Primary School 1st – 5th (Default ₹300/hr)">
+                        <option value="Grade 1">Grade 1 (₹300 per hour)</option>
+                        <option value="Grade 2">Grade 2 (₹300 per hour)</option>
+                        <option value="Grade 3">Grade 3 (₹300 per hour)</option>
+                        <option value="Grade 4">Grade 4 (₹300 per hour)</option>
+                        <option value="Grade 5">Grade 5 (₹300 per hour)</option>
+                      </optgroup>
+                      <optgroup label="Middle School 6th – 7th (Default ₹320/hr)">
+                        <option value="Grade 6">Grade 6 (₹320 per hour)</option>
+                        <option value="Grade 7">Grade 7 (₹320 per hour)</option>
+                      </optgroup>
+                      <optgroup label="High School 8th – 10th">
+                        <option value="Grade 8">Grade 8 (₹350 per hour)</option>
+                        <option value="Grade 9">Grade 9 (₹350 per hour)</option>
+                        <option value="Grade 10 (Board)">Grade 10 Board Exam (₹400 per hour)</option>
+                      </optgroup>
+                      <optgroup label="Senior Secondary 11th – 12th">
+                        <option value="Grade 11 (Board / Entrance)">Grade 11 Science/Commerce/Arts (₹600 per hour)</option>
+                        <option value="Grade 12 (Board / Entrance)">Grade 12 Board/Entrance (₹600 per hour)</option>
+                      </optgroup>
                     </select>
                   </div>
 

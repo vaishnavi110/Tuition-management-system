@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const { JWT_SECRET } = require('../middleware/authMiddleware');
 const prisma = require('../prisma');
 const inviteService = require('../services/inviteService');
+const { resolveGradeTier } = require('./scheduleController');
 
 // Valid academy invitation codes for controlled staff onboarding
 const VALID_TEACHER_INVITES = inviteService.STATIC_TEACHER_CODES;
@@ -189,9 +190,11 @@ const register = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
 
-    let defaultGrade = await prisma.grade.findFirst({
-      where: { name: { contains: grade || '10' } }
-    }) || await prisma.grade.findFirst();
+    const allDbGrades = await prisma.grade.findMany();
+    const matchedTier = resolveGradeTier(grade || 'Grade 10 (Board)', allDbGrades);
+    let defaultGrade = allDbGrades.find(g => g.id === matchedTier?.id || g.name === matchedTier?.name)
+      || allDbGrades[0]
+      || null;
 
     const createdUser = await prisma.user.create({
       data: {
@@ -262,6 +265,8 @@ const register = async (req, res) => {
   const salt = await bcrypt.genSalt(10);
   const passwordHash = await bcrypt.hash(password, salt);
 
+  const resolvedStudentGradeTier = resolveGradeTier(grade || 'Grade 10 (Board)');
+
   const newUser = {
     id: `user-${normalizedRole.toLowerCase()}-${Date.now()}`,
     name: name.trim(),
@@ -275,7 +280,7 @@ const register = async (req, res) => {
     schoolName: schoolName ? schoolName.trim() : '',
     qualification: qualification || (normalizedRole === 'TEACHER' ? 'Graduate Tutor' : undefined),
     designation: designation || (normalizedRole === 'ADMIN' ? 'Operations Manager' : undefined),
-    hourlyRate: normalizedRole === 'TEACHER' ? 250 : 400,
+    hourlyRate: normalizedRole === 'TEACHER' ? 250 : resolvedStudentGradeTier.studentHourlyRate,
     passwordHash
   };
 

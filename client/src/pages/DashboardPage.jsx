@@ -104,7 +104,8 @@ export default function DashboardPage() {
   const [endTime, setEndTime] = useState('18:30');
   const [meetLink, setMeetLink] = useState('https://meet.google.com/new');
 
-  // Form states for new grade rate
+  // Form states for grade rate create/edit
+  const [editingGradeId, setEditingGradeId] = useState(null);
   const [newGradeName, setNewGradeName] = useState('');
   const [newStudentRate, setNewStudentRate] = useState('');
   const [newTeacherRate, setNewTeacherRate] = useState('');
@@ -878,24 +879,51 @@ export default function DashboardPage() {
     }
   };
 
-  // Add a new Grade Rate
+  const openAddGradeModal = () => {
+    setEditingGradeId(null);
+    setNewGradeName('');
+    setNewStudentRate('');
+    setNewTeacherRate('');
+    setIsGradeModalOpen(true);
+  };
+
+  const openEditGradeModal = (gradeObj) => {
+    setEditingGradeId(gradeObj.id);
+    setNewGradeName(gradeObj.name);
+    setNewStudentRate(String(gradeObj.studentHourlyRate));
+    setNewTeacherRate(String(gradeObj.teacherHourlyRate));
+    setIsGradeModalOpen(true);
+  };
+
+  // Create or Update a Grade Rate Card
   const handleCreateGrade = async (e) => {
     e.preventDefault();
     try {
-      const res = await axios.post('/api/schedule/grades', {
-        name: newGradeName,
-        studentHourlyRate: newStudentRate,
-        teacherHourlyRate: newTeacherRate
-      });
-      setGrades([...grades, res.data.grade]);
+      if (editingGradeId) {
+        const res = await axios.put(`/api/schedule/grades/${editingGradeId}`, {
+          name: newGradeName,
+          studentHourlyRate: newStudentRate,
+          teacherHourlyRate: newTeacherRate
+        });
+        setGrades(prev => prev.map(g => g.id === editingGradeId ? res.data.grade : g));
+        setActionSuccess('Grade fee rate updated successfully.');
+      } else {
+        const res = await axios.post('/api/schedule/grades', {
+          name: newGradeName,
+          studentHourlyRate: newStudentRate,
+          teacherHourlyRate: newTeacherRate
+        });
+        setGrades([...grades, res.data.grade]);
+        setActionSuccess('Grade fee rate added.');
+      }
       setIsGradeModalOpen(false);
+      setEditingGradeId(null);
       setNewGradeName('');
       setNewStudentRate('');
       setNewTeacherRate('');
-      setActionSuccess('Grade fee rate added.');
       setTimeout(() => setActionSuccess(''), 3000);
     } catch (err) {
-      alert(err.response?.data?.error || 'Failed to add grade');
+      alert(err.response?.data?.error || 'Failed to save grade rate');
     }
   };
 
@@ -1177,17 +1205,55 @@ export default function DashboardPage() {
     navigate('/');
   };
 
-  // Admin Simulator calculations
+  // Admin Simulator calculations (covers LKG through 12th Standard)
   const simRates = {
-    grade8: { name: 'Grade 8 – 9', studentRate: 350, teacherRate: 220 },
+    prePrimary: { name: 'LKG – UKG (Pre-Primary)', studentRate: 250, teacherRate: 150 },
+    primary: { name: 'Grade 1 – 5 (Primary)', studentRate: 300, teacherRate: 180 },
+    middle: { name: 'Grade 6 – 7 (Middle School)', studentRate: 320, teacherRate: 200 },
+    grade8: { name: 'Grade 8 – 9 (Foundation)', studentRate: 350, teacherRate: 220 },
     grade10: { name: 'Grade 10 (Board)', studentRate: 400, teacherRate: 250 },
-    grade12: { name: 'Grade 11 – 12 (JEE/NEET)', studentRate: 600, teacherRate: 350 }
+    grade12: { name: 'Grade 11 – 12 (Board / JEE)', studentRate: 600, teacherRate: 350 }
   };
   const activeSim = simRates[adminSimGrade] || simRates.grade10;
   const simTotalRev = activeSim.studentRate * adminSimHours * adminSimStudents;
   const simTotalPay = activeSim.teacherRate * adminSimHours * adminSimStudents;
   const simNetProfit = simTotalRev - simTotalPay;
   const simMarginPct = Math.round((simNetProfit / simTotalRev) * 100);
+
+  // Shared grade filter matcher covering LKG through Grade 12
+  const matchesGradeFilter = (gradeStr, filterKey) => {
+    if (filterKey === 'ALL') return true;
+    const lower = String(gradeStr || '').toLowerCase();
+    if (filterKey === 'PRE_PRIMARY') return /lkg|ukg|nursery|pre[-\s]?primary/.test(lower);
+    const numMatch = lower.match(/\b(\d{1,2})\b/);
+    const num = numMatch ? parseInt(numMatch[1], 10) : null;
+    if (num === null) return false;
+    if (filterKey === 'PRIMARY') return num >= 1 && num <= 5;
+    if (filterKey === 'MIDDLE') return num >= 6 && num <= 7;
+    if (filterKey === 'GRADE8') return num >= 8 && num <= 9;
+    if (filterKey === 'GRADE10') return num === 10;
+    if (filterKey === 'GRADE12') return num >= 11 && num <= 12;
+    return true;
+  };
+
+  // Shared hourly rate resolver across LKG through Grade 12 (reads configured rate cards first)
+  const resolveGradeRatePair = (gradeStr) => {
+    const lower = String(gradeStr || '').toLowerCase();
+    const matchFromCards = (predicate, fallback) => grades.find(predicate) || fallback;
+    if (/lkg|ukg|nursery|pre[-\s]?primary/.test(lower)) {
+      return matchFromCards(g => /lkg|ukg|pre[-\s]?primary/i.test(g.name), { studentHourlyRate: 250, teacherHourlyRate: 150 });
+    }
+    const numMatch = lower.match(/\b(\d{1,2})\b/);
+    const num = numMatch ? parseInt(numMatch[1], 10) : null;
+    if (num !== null) {
+      if (num >= 11) return matchFromCards(g => /\b11\b|\b12\b/.test(g.name), { studentHourlyRate: 600, teacherHourlyRate: 350 });
+      if (num === 10) return matchFromCards(g => /\b10\b/.test(g.name), { studentHourlyRate: 400, teacherHourlyRate: 250 });
+      if (num >= 8) return matchFromCards(g => /\b8\b|\b9\b/.test(g.name), { studentHourlyRate: 350, teacherHourlyRate: 220 });
+      if (num >= 6) return matchFromCards(g => /\b6\b|\b7\b/.test(g.name), { studentHourlyRate: 320, teacherHourlyRate: 200 });
+      if (num >= 1) return matchFromCards(g => /\b1\s*[–-]\s*5\b|\(primary\)/i.test(g.name), { studentHourlyRate: 300, teacherHourlyRate: 180 });
+    }
+    return { studentHourlyRate: 400, teacherHourlyRate: 250 };
+  };
 
   // Filtered class logs for Admin Quality Audit
   const filteredLogs = classLogs.filter(log => {
@@ -1200,11 +1266,7 @@ export default function DashboardPage() {
       log.subject?.toLowerCase().includes(term) ||
       log.topicsCovered?.toLowerCase().includes(term);
     
-    const matchesGrade = 
-      gradeFilter === 'ALL' || 
-      (gradeFilter === 'GRADE10' && log.grade?.includes('10')) ||
-      (gradeFilter === 'GRADE12' && log.grade?.includes('12')) ||
-      (gradeFilter === 'GRADE8' && (log.grade?.includes('8') || log.grade?.includes('9')));
+    const matchesGrade = matchesGradeFilter(log.grade, gradeFilter);
 
     const matchesProof =
       auditProofFilter === 'ALL' ||
@@ -1226,11 +1288,7 @@ export default function DashboardPage() {
       (student.parentPhone || '').toLowerCase().includes(term) ||
       (student.schoolName || '').toLowerCase().includes(term);
     
-    const matchesGrade = 
-      adminDirectoryGradeFilter === 'ALL' || 
-      (adminDirectoryGradeFilter === 'GRADE10' && (student.grade || '').includes('10')) ||
-      (adminDirectoryGradeFilter === 'GRADE12' && (student.grade || '').includes('12')) ||
-      (adminDirectoryGradeFilter === 'GRADE8' && ((student.grade || '').includes('8') || (student.grade || '').includes('9')));
+    const matchesGrade = matchesGradeFilter(student.grade, adminDirectoryGradeFilter);
     
     return matchesSearch && matchesGrade;
   });
@@ -4032,10 +4090,13 @@ export default function DashboardPage() {
                       onChange={(e) => setAdminDirectoryGradeFilter(e.target.value)}
                       className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-medium bg-slate-50 focus:bg-white"
                     >
-                      <option value="ALL">All Standards</option>
+                      <option value="ALL">All Standards (LKG–12th)</option>
+                      <option value="PRE_PRIMARY">LKG – UKG</option>
+                      <option value="PRIMARY">Grade 1 – 5</option>
+                      <option value="MIDDLE">Grade 6 – 7</option>
+                      <option value="GRADE8">Grade 8 – 9</option>
                       <option value="GRADE10">Grade 10</option>
                       <option value="GRADE12">Grade 11 – 12</option>
-                      <option value="GRADE8">Grade 8 – 9</option>
                     </select>
                   ) : (
                     <select
@@ -4286,6 +4347,9 @@ export default function DashboardPage() {
                         onChange={(e) => setAdminSimGrade(e.target.value)}
                         className="w-full px-3 py-2 rounded-xl bg-white/10 border border-white/15 text-xs text-white"
                       >
+                        <option value="prePrimary" className="bg-slate-900 text-white">LKG – UKG (₹250 / ₹150)</option>
+                        <option value="primary" className="bg-slate-900 text-white">Grade 1 – 5 (₹300 / ₹180)</option>
+                        <option value="middle" className="bg-slate-900 text-white">Grade 6 – 7 (₹320 / ₹200)</option>
                         <option value="grade8" className="bg-slate-900 text-white">Grade 8 – 9 (₹350 / ₹220)</option>
                         <option value="grade10" className="bg-slate-900 text-white">Grade 10 (₹400 / ₹250)</option>
                         <option value="grade12" className="bg-slate-900 text-white">Grade 11 – 12 (₹600 / ₹350)</option>
@@ -4450,10 +4514,13 @@ export default function DashboardPage() {
                           onChange={(e) => setGradeFilter(e.target.value)}
                           className="px-2.5 py-1.5 rounded-xl border border-slate-200 text-xs bg-slate-50 font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                         >
-                          <option value="ALL">All Standards</option>
+                          <option value="ALL">All Standards (LKG–12th)</option>
+                          <option value="PRE_PRIMARY">LKG – UKG</option>
+                          <option value="PRIMARY">Grade 1 – 5</option>
+                          <option value="MIDDLE">Grade 6 – 7</option>
+                          <option value="GRADE8">Grade 8 – 9</option>
                           <option value="GRADE10">Grade 10</option>
-                          <option value="GRADE12">Grade 12</option>
-                          <option value="GRADE8">Grade 8-9</option>
+                          <option value="GRADE12">Grade 11 – 12</option>
                         </select>
                       </div>
                     </div>
@@ -4484,8 +4551,9 @@ export default function DashboardPage() {
                               const sessionObj = sessions.find(s => s.id === log.sessionId) || { id: log.sessionId, recordingUrl: recUrl };
                               const videoInfo = getEmbeddableVideoUrl(recUrl);
 
-                              const studentRate = log.grade?.includes('12') ? 600 : 400;
-                              const teacherRate = log.grade?.includes('12') ? 350 : 250;
+                              const ratePair = resolveGradeRatePair(log.grade);
+                              const studentRate = ratePair.studentHourlyRate;
+                              const teacherRate = ratePair.teacherHourlyRate;
                               const studentCharge = Math.round(log.billableHours * studentRate);
                               const teacherPay = Math.round(log.billableHours * teacherRate);
 
@@ -4872,7 +4940,7 @@ export default function DashboardPage() {
                   <p className="text-xs text-slate-500">Student fee rates and teacher rates vary by grade.</p>
                 </div>
                 <button 
-                  onClick={() => setIsGradeModalOpen(true)}
+                  onClick={openAddGradeModal}
                   className="text-xs px-3.5 py-2 rounded-xl font-bold bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-1 shadow-sm transition-all"
                 >
                   <Plus className="w-3.5 h-3.5" /> Add Grade Rate
@@ -4887,18 +4955,29 @@ export default function DashboardPage() {
                       <th className="py-2.5">Student Fee Rate</th>
                       <th className="py-2.5">Teacher Rate</th>
                       <th className="py-2.5">Academy Share</th>
+                      <th className="py-2.5 text-right pr-2">Edit</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {grades.map((g) => {
                       const margin = g.studentHourlyRate - g.teacherHourlyRate;
-                      const marginPercent = Math.round((margin / g.studentHourlyRate) * 100);
+                      const marginPercent = g.studentHourlyRate > 0 ? Math.round((margin / g.studentHourlyRate) * 100) : 0;
                       return (
-                        <tr key={g.id}>
+                        <tr key={g.id} className="hover:bg-slate-50/60 transition-colors">
                           <td className="py-3 font-semibold text-slate-800">{g.name}</td>
                           <td className="py-3 text-indigo-600 font-bold">₹{g.studentHourlyRate} per hour</td>
                           <td className="py-3 text-slate-500">₹{g.teacherHourlyRate} per hour</td>
                           <td className="py-3 text-emerald-600 font-semibold">+₹{margin} per hour ({marginPercent}%)</td>
+                          <td className="py-3 text-right pr-2">
+                            <button
+                              type="button"
+                              onClick={() => openEditGradeModal(g)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-colors"
+                            >
+                              <Edit2 className="w-3 h-3" />
+                              <span>Edit Rate</span>
+                            </button>
+                          </td>
                         </tr>
                       );
                     })}
@@ -5518,7 +5597,9 @@ export default function DashboardPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 border border-slate-200 shadow-2xl relative">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold text-slate-900">Add Grade Rate Card</h3>
+              <h3 className="text-xl font-bold text-slate-900">
+                {editingGradeId ? 'Update Grade Rate Card' : 'Add Grade Rate Card'}
+              </h3>
               <button onClick={() => setIsGradeModalOpen(false)} className="text-slate-400 hover:text-slate-600">
                 <X className="w-5 h-5" />
               </button>

@@ -858,9 +858,55 @@ async function runTestSuite() {
     assert(removeReviewedRes.status === 400, 'Already reviewed submission cannot be removed (HTTP 400)');
 
     // -------------------------------------------------------------------------
-    // 16. Automated Teardown of Temporary Test Users
+    // 16. LKG to 12th Standard Grade Rate Tiers & Registration Resolution
     // -------------------------------------------------------------------------
-    console.log('\n--- 16. Automated Teardown of Temporary Test Users ---');
+    console.log('\n--- 16. LKG to 12th Standard Grade Rate Tiers & Registration Resolution ---');
+
+    const allGradesRes = await request('GET', '/schedule/grades');
+    assert(allGradesRes.status === 200, 'Grades endpoint responds with HTTP 200');
+    const gradeNames = (allGradesRes.data?.grades || []).map(g => g.name.toLowerCase());
+    assert(gradeNames.some(n => n.includes('lkg')), 'Grades include LKG – UKG tier');
+    assert(gradeNames.some(n => n.includes('1') && n.includes('5')), 'Grades include Primary Grade 1 – 5 tier');
+    assert(gradeNames.some(n => n.includes('6') && n.includes('7')), 'Grades include Middle School Grade 6 – 7 tier');
+
+    // Register an LKG student and confirm ₹250/hr tier resolution
+    const lkgEmail = `lkg.student.${Date.now()}@gmail.com`;
+    const lkgRegRes = await request('POST', '/auth/register', {
+      name: 'Aarav PrePrimary',
+      emailOrPhone: lkgEmail,
+      phone: '9822110099',
+      password: 'password123',
+      role: 'STUDENT',
+      grade: 'LKG',
+      parentName: 'Mrs. Priya PrePrimary',
+      parentPhone: '9822110088',
+      schoolName: 'Little Angels Preschool'
+    });
+    assert(lkgRegRes.status === 201, 'LKG student registers successfully (HTTP 201)');
+    if (lkgRegRes.data?.user?.id) createdTestUserIds.push(lkgRegRes.data.user.id);
+    assert(lkgRegRes.data?.user?.hourlyRate === 250, `LKG student inherits default ₹250/hr Pre-Primary rate (got: ${lkgRegRes.data?.user?.hourlyRate})`);
+
+    // Register a Grade 4 student and confirm ₹300/hr Primary tier resolution
+    const grade4Email = `grade4.student.${Date.now()}@gmail.com`;
+    const grade4RegRes = await request('POST', '/auth/register', {
+      name: 'Diya Primary',
+      emailOrPhone: grade4Email,
+      phone: '9833221100',
+      password: 'password123',
+      role: 'STUDENT',
+      grade: 'Grade 4',
+      parentName: 'Mr. Vikram Primary',
+      parentPhone: '9833221199',
+      schoolName: 'National Public School'
+    });
+    assert(grade4RegRes.status === 201, 'Grade 4 student registers successfully (HTTP 201)');
+    if (grade4RegRes.data?.user?.id) createdTestUserIds.push(grade4RegRes.data.user.id);
+    assert(grade4RegRes.data?.user?.hourlyRate === 300, `Grade 4 student inherits default ₹300/hr Primary rate (got: ${grade4RegRes.data?.user?.hourlyRate})`);
+
+    // -------------------------------------------------------------------------
+    // 17. Automated Teardown of Temporary Test Users
+    // -------------------------------------------------------------------------
+    console.log('\n--- 17. Automated Teardown of Temporary Test Users ---');
     let cleanupSuccess = 0;
     for (const userId of createdTestUserIds) {
       try {

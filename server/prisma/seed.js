@@ -10,7 +10,25 @@ async function main() {
   await prisma.classLog.deleteMany({});
   await prisma.session.deleteMany({});
 
-  // 1. Seed Grade Rate Cards (3 Tiers)
+  // 1. Seed Grade Rate Cards (LKG through 12th Standard - 6 Default Tiers)
+  await prisma.grade.upsert({
+    where: { name: 'LKG – UKG (Pre-Primary)' },
+    update: { studentHourlyRate: 250.0, teacherHourlyRate: 150.0 },
+    create: { name: 'LKG – UKG (Pre-Primary)', studentHourlyRate: 250.0, teacherHourlyRate: 150.0 }
+  });
+
+  await prisma.grade.upsert({
+    where: { name: 'Grade 1 – 5 (Primary)' },
+    update: { studentHourlyRate: 300.0, teacherHourlyRate: 180.0 },
+    create: { name: 'Grade 1 – 5 (Primary)', studentHourlyRate: 300.0, teacherHourlyRate: 180.0 }
+  });
+
+  await prisma.grade.upsert({
+    where: { name: 'Grade 6 – 7 (Middle School)' },
+    update: { studentHourlyRate: 320.0, teacherHourlyRate: 200.0 },
+    create: { name: 'Grade 6 – 7 (Middle School)', studentHourlyRate: 320.0, teacherHourlyRate: 200.0 }
+  });
+
   const grade9 = await prisma.grade.upsert({
     where: { name: 'Grade 8 – 9 (Foundation)' },
     update: { studentHourlyRate: 350.0, teacherHourlyRate: 220.0 },
@@ -29,7 +47,7 @@ async function main() {
     create: { name: 'Grade 11 – 12 (Board / JEE)', studentHourlyRate: 600.0, teacherHourlyRate: 350.0 }
   });
 
-  console.log('✅ Grades seeded: Grade 8-9 (₹350/₹220), Grade 10 (₹400/₹250), Grade 11-12 (₹600/₹350)');
+  console.log('✅ Grades seeded: LKG-UKG (₹250/₹150), Grade 1-5 (₹300/₹180), Grade 6-7 (₹320/₹200), Grade 8-9 (₹350/₹220), Grade 10 (₹400/₹250), Grade 11-12 (₹600/₹350)');
 
   // 2. Seed Admin User (Managing Director Sharma)
   const adminPassword = await bcrypt.hash('admin123', 10);

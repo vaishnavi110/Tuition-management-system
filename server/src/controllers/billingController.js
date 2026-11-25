@@ -1,6 +1,7 @@
 const prisma = require('../prisma');
 const { CLASS_LOGS } = require('./logController');
 const { FALLBACK_STUDENTS, FALLBACK_TEACHERS } = require('./adminController');
+const { resolveGradeTier } = require('./scheduleController');
 
 // Memory store for invoice payment overrides (stores payment metadata keyed by invoice/student key)
 const INVOICE_PAYMENT_OVERRIDES = new Map();
@@ -90,7 +91,7 @@ const computeStudentInvoices = async (month = 11, year = 2026) => {
       ? studentLogs.reduce((sum, l) => sum + (l.billableHours || 0), 0)
       : (st.attendedHours || 0);
 
-    const hourlyRate = st.hourlyRate || (st.grade?.includes('12') ? 600 : 400);
+    const hourlyRate = st.hourlyRate || resolveGradeTier(st.grade).studentHourlyRate;
     const totalAmount = Math.round(attendedHours * hourlyRate);
     const override = INVOICE_PAYMENT_OVERRIDES.get(getOverrideKey(st.id, month, year));
     const isPaid = override?.status === 'PAID' || totalAmount === 0;
