@@ -91,6 +91,7 @@ export default function DashboardPage() {
   const [testBank, setTestBank] = useState('HDFC');
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [paidRecord, setPaidRecord] = useState(null);
+  const [myStudentInvoice, setMyStudentInvoice] = useState(null);
 
   // Form states for new session
   const [enrolledStudents, setEnrolledStudents] = useState([]);
@@ -224,17 +225,29 @@ export default function DashboardPage() {
     try {
       setIsProcessingPayment(true);
 
-      // 1. Fetch Razorpay key configuration
+      // 1. Fetch Razorpay configuration (checks if live production keys exist or sandbox test mode is active)
       const configRes = await axios.get('/api/payment/config').catch(() => ({
-        data: { keyId: 'rzp_test_U1yR5VGrBZDTQE' }
+        data: { keyId: null, hasValidKeys: false, isTestMode: true }
       }));
-      const keyId = configRes.data?.keyId || 'rzp_test_U1yR5VGrBZDTQE';
+      const isLiveProduction = Boolean(configRes.data?.hasValidKeys && configRes.data?.keyId && !configRes.data?.isTestMode);
 
-      // 2. Create order on backend (calls official Razorpay API)
+      // 2. In Sandbox / Test Mode (client awaiting Razorpay KYC), open built-in Razorpay Test Checkout modal directly
+      // This avoids external Razorpay SDK popups asking for/failing on unverified KYC API keys.
+      if (!isLiveProduction) {
+        setIsRazorpayModalOpen(true);
+        return;
+      }
+
+      const keyId = configRes.data.keyId;
+
+      // 3. Create order on backend (calls official Razorpay API)
       const orderRes = await axios.post('/api/payment/create-order', {
         amount: totalPayableFee,
+        studentId: user?.id,
         studentName: user?.name,
-        receiptId: `REC-${Date.now()}`
+        month: 11,
+        year: 2026,
+        receiptId: myStudentInvoice?.invoiceNumber || `REC-${Date.now()}`
       }).catch(() => ({
         data: {
           order: {
@@ -246,7 +259,7 @@ export default function DashboardPage() {
 
       const order = orderRes.data?.order;
 
-      // 3. Ensure official Razorpay SDK script is loaded
+      // 4. Ensure official Razorpay SDK script is loaded
       if (!window.Razorpay) {
         await new Promise((resolve, reject) => {
           const script = document.createElement('script');
@@ -257,7 +270,7 @@ export default function DashboardPage() {
         });
       }
 
-      // 4. Launch Official Razorpay Checkout Popup
+      // 5. Launch Official Razorpay Checkout Popup
       const options = {
         key: keyId,
         amount: order?.amount || totalPayableFee * 100,
@@ -268,14 +281,21 @@ export default function DashboardPage() {
         order_id: order?.id && !order.id.startsWith('order_test_') ? order.id : undefined,
         handler: async function (response) {
           try {
-            // response: { razorpay_payment_id, razorpay_order_id, razorpay_signature }
             const verifyRes = await axios.post('/api/payment/verify', {
               orderId: response.razorpay_order_id || order?.id,
               paymentId: response.razorpay_payment_id,
               signature: response.razorpay_signature,
               amount: totalPayableFee,
-              paymentMethod: 'RAZORPAY_OFFICIAL'
+              paymentMethod: 'RAZORPAY_OFFICIAL',
+              studentId: user?.id,
+              studentName: user?.name,
+              month: 11,
+              year: 2026
             });
+
+            if (verifyRes.data?.invoice) {
+              setMyStudentInvoice(verifyRes.data.invoice);
+            }
 
             const verifiedRecord = {
               paymentId: response.razorpay_payment_id || verifyRes.data?.payment?.paymentId,
@@ -351,8 +371,11 @@ export default function DashboardPage() {
       // 1. Backend test order creation
       const orderRes = await axios.post('/api/payment/create-order', {
         amount: totalPayableFee,
+        studentId: user?.id,
         studentName: user?.name,
-        receiptId: `REC-${Date.now()}`
+        month: 11,
+        year: 2026,
+        receiptId: myStudentInvoice?.invoiceNumber || `REC-${Date.now()}`
       }).catch(() => ({
         data: {
           order: {
@@ -366,14 +389,18 @@ export default function DashboardPage() {
       const mockPayId = `pay_test_${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
 
       // 2. Simulated payment gateway round-trip latency
-      await new Promise(r => setTimeout(r, 1200));
+      await new Promise(r => setTimeout(r, 900));
 
-      // 3. Backend verification
+      // 3. Backend verification & Invoice persistence
       const verifyRes = await axios.post('/api/payment/verify', {
         orderId,
         paymentId: mockPayId,
         amount: totalPayableFee,
-        paymentMethod: razorpayMethod
+        paymentMethod: razorpayMethod,
+        studentId: user?.id,
+        studentName: user?.name,
+        month: 11,
+        year: 2026
       }).catch(() => ({
         data: {
           payment: {
@@ -382,6 +409,10 @@ export default function DashboardPage() {
           }
         }
       }));
+
+      if (verifyRes.data?.invoice) {
+        setMyStudentInvoice(verifyRes.data.invoice);
+      }
 
       const verifiedRecord = {
         paymentId: verifyRes.data?.payment?.paymentId || mockPayId,
@@ -393,7 +424,7 @@ export default function DashboardPage() {
 
       setPaidRecord(verifiedRecord);
       setIsRazorpayModalOpen(false);
-      setActionSuccess(`Payment of ₹${totalPayableFee.toLocaleString('en-IN')} received via Razorpay Test Gateway! (Payment ID: ${verifiedRecord.paymentId})`);
+      setActionSuccess(`Payment of ₹${totalPayableFee.toLocaleString('en-IN')} verified and invoice marked PAID! (Payment ID: ${verifiedRecord.paymentId})`);
     } catch (err) {
       console.error('Razorpay test payment error:', err);
     } finally {
@@ -401,8 +432,14 @@ export default function DashboardPage() {
     }
   };
 
-  const handleResetDemoFeePayment = () => {
+  const handleResetDemoFeePayment = async () => {
+    try {
+      await axios.post('/api/payment/reset-demo', { month: 11, year: 2026 }).catch(() => {});
+    } catch (e) {
+      console.warn('Reset demo bill notice:', e);
+    }
     setPaidRecord(null);
+    setMyStudentInvoice(prev => (prev ? { ...prev, status: 'UNPAID', razorpayPaymentId: null, razorpayOrderId: null } : prev));
     setActionSuccess('Fee Bill reset to unpaid for demo testing.');
   };
 
@@ -520,6 +557,32 @@ export default function DashboardPage() {
         setSelectedSessionId(loadedSessions[0].id);
         setLogStartTime(loadedSessions[0].startTime || '17:00');
         setLogEndTime(loadedSessions[0].endTime || '18:15'); // 75 mins demo standard
+      }
+
+      // Hydrate Student's persistent monthly invoice & payment status
+      if (user?.role === 'STUDENT') {
+        try {
+          const myInvRes = await axios.get('/api/billing/my-invoice').catch(() => ({ data: null }));
+          const inv = myInvRes?.data?.invoice;
+          if (inv) {
+            setMyStudentInvoice(inv);
+            if (inv.status === 'PAID' && (inv.razorpayPaymentId || inv.totalAmount > 0)) {
+              setPaidRecord({
+                paymentId: inv.razorpayPaymentId || inv.invoiceNumber,
+                orderId: inv.razorpayOrderId || inv.id,
+                amount: inv.totalAmount,
+                method: inv.paymentMethod || 'Razorpay',
+                paidAt: inv.paidAt
+                  ? new Date(inv.paidAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                  : 'Settled'
+              });
+            } else if (inv.status === 'UNPAID') {
+              setPaidRecord(null);
+            }
+          }
+        } catch (e) {
+          console.warn('Student invoice fetch notice:', e);
+        }
       }
 
       // Fetch enrolled students list for session scheduling (Teachers and Admins)
@@ -1833,23 +1896,23 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                {/* 📌 Notice: Online payment is planned for later */}
-                <div className="p-4 sm:p-5 rounded-2xl bg-amber-50/80 border border-amber-200 text-xs text-amber-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+                {/* 💳 Razorpay Sandbox / Live Readiness Notice */}
+                <div className="p-4 sm:p-5 rounded-2xl bg-blue-50/80 border border-blue-200 text-xs text-blue-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
                   <div className="flex items-start sm:items-center gap-3">
-                    <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
-                      <Clock className="w-4 h-4 text-amber-700" />
+                    <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-800 flex items-center justify-center shrink-0">
+                      <ShieldCheck className="w-4 h-4 text-blue-700" />
                     </div>
                     <div>
-                      <span className="font-bold text-amber-900 block text-xs">
-                        Online Payment is Planned for Later
+                      <span className="font-bold text-blue-950 block text-xs">
+                        Razorpay Fee Checkout (Sandbox Demo Active)
                       </span>
-                      <p className="text-amber-800 text-[11px] mt-0.5 leading-relaxed">
-                        Online automatic checkout (cards &amp; net banking) is scheduled for a future update. Monthly fees are calculated automatically from verified classes and can be settled directly with the academy via UPI or bank transfer.
+                      <p className="text-blue-800 text-[11px] mt-0.5 leading-relaxed">
+                        Pay easily using Card, UPI (GPay / PhonePe), or NetBanking in Sandbox mode. Once the academy connects live Razorpay keys, real transactions and webhooks switch on automatically.
                       </p>
                     </div>
                   </div>
-                  <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-amber-200/80 text-amber-900 border border-amber-300 self-start sm:self-auto shrink-0">
-                    Planned for later
+                  <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-blue-200/70 text-blue-900 border border-blue-300 self-start sm:self-auto shrink-0">
+                    Test Gateway Ready
                   </span>
                 </div>
 
@@ -4029,6 +4092,9 @@ export default function DashboardPage() {
                                       <span className={`w-1.5 h-1.5 rounded-full ${inv.status === 'PAID' ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
                                       <span>{inv.status === 'PAID' ? 'Paid' : 'Unpaid / Due'}</span>
                                     </span>
+                                    {inv.status === 'PAID' && inv.razorpayPaymentId && (
+                                      <div className="text-[10px] text-slate-400 font-mono mt-0.5">{inv.razorpayPaymentId}</div>
+                                    )}
                                   </td>
                                   <td className="py-3 text-xs text-right pr-2">
                                     <button
@@ -4400,7 +4466,9 @@ export default function DashboardPage() {
                 </div>
                 <div>
                   <h3 className="font-extrabold text-slate-900 text-base">TuitionHub Coaching Academy</h3>
-                  <span className="text-[10px] text-indigo-700 font-mono font-semibold">Monthly Fee Bill &bull; #INV-2026-8921</span>
+                  <span className="text-[10px] text-indigo-700 font-mono font-semibold">
+                    Monthly Fee Receipt &bull; {myStudentInvoice?.invoiceNumber || '#INV-202611-001'}
+                  </span>
                 </div>
               </div>
               <button onClick={() => setIsReceiptModalOpen(false)} className="text-slate-400 hover:text-slate-600">

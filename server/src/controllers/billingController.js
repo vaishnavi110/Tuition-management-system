@@ -2,8 +2,10 @@ const prisma = require('../prisma');
 const { CLASS_LOGS } = require('./logController');
 const { FALLBACK_STUDENTS, FALLBACK_TEACHERS } = require('./adminController');
 
-// Memory store for invoice payment overrides (if any)
+// Memory store for invoice payment overrides (stores payment metadata keyed by invoice/student key)
 const INVOICE_PAYMENT_OVERRIDES = new Map();
+
+const getOverrideKey = (studentId, month = 11, year = 2026) => `inv-${studentId}-${year}-${month}`;
 
 /**
  * Helper to compute student monthly fee invoice data
@@ -39,7 +41,9 @@ const computeStudentInvoices = async (month = 11, year = 2026) => {
         const totalAmount = Math.round(attendedHours * hourlyRate);
 
         const existingInvoice = st.invoices && st.invoices[0];
-        const isPaid = existingInvoice?.status === 'PAID' || totalAmount === 0;
+        const override = INVOICE_PAYMENT_OVERRIDES.get(getOverrideKey(studentUserId, month, year))
+          || INVOICE_PAYMENT_OVERRIDES.get(getOverrideKey(st.id, month, year));
+        const isPaid = existingInvoice?.status === 'PAID' || override?.status === 'PAID' || totalAmount === 0;
 
         return {
           id: existingInvoice?.id || `inv-${st.id}-${year}-${month}`,
@@ -60,7 +64,10 @@ const computeStudentInvoices = async (month = 11, year = 2026) => {
           year: Number(year),
           monthName: new Date(year, month - 1, 1).toLocaleString('en-IN', { month: 'long', year: 'numeric' }),
           status: isPaid ? 'PAID' : 'UNPAID',
-          paidAt: existingInvoice?.paidAt || (totalAmount === 0 ? new Date().toISOString() : null),
+          razorpayOrderId: existingInvoice?.razorpayOrderId || override?.razorpayOrderId || null,
+          razorpayPaymentId: existingInvoice?.razorpayPaymentId || override?.razorpayPaymentId || null,
+          paymentMethod: override?.paymentMethod || (existingInvoice?.razorpayPaymentId ? 'Razorpay' : null),
+          paidAt: existingInvoice?.paidAt || override?.paidAt || (totalAmount === 0 ? new Date().toISOString() : null),
           createdAt: existingInvoice?.createdAt || new Date().toISOString()
         };
       });
@@ -85,8 +92,8 @@ const computeStudentInvoices = async (month = 11, year = 2026) => {
 
     const hourlyRate = st.hourlyRate || (st.grade?.includes('12') ? 600 : 400);
     const totalAmount = Math.round(attendedHours * hourlyRate);
-    const overrideStatus = INVOICE_PAYMENT_OVERRIDES.get(`inv-${st.id}-${year}-${month}`);
-    const isPaid = overrideStatus === 'PAID' || totalAmount === 0;
+    const override = INVOICE_PAYMENT_OVERRIDES.get(getOverrideKey(st.id, month, year));
+    const isPaid = override?.status === 'PAID' || totalAmount === 0;
 
     return {
       id: `inv-${st.id}-${year}-${month}`,
@@ -107,7 +114,10 @@ const computeStudentInvoices = async (month = 11, year = 2026) => {
       year: Number(year),
       monthName: new Date(year, month - 1, 1).toLocaleString('en-IN', { month: 'long', year: 'numeric' }),
       status: isPaid ? 'PAID' : 'UNPAID',
-      paidAt: isPaid ? new Date().toISOString() : null,
+      razorpayOrderId: override?.razorpayOrderId || null,
+      razorpayPaymentId: override?.razorpayPaymentId || null,
+      paymentMethod: override?.paymentMethod || null,
+      paidAt: override?.paidAt || (isPaid ? new Date().toISOString() : null),
       createdAt: st.joinedAt || new Date().toISOString()
     };
   });
@@ -351,11 +361,141 @@ const getMyStudentInvoice = async (req, res) => {
   }
 };
 
+/**
+ * Mark a student's monthly fee invoice as PAID across Prisma & fallback store
+ */
+const markInvoicePaid = async ({
+  studentId,
+  studentName,
+  month = 11,
+  year = 2026,
+  orderId,
+  paymentId,
+  paymentMethod = 'RAZORPAY',
+  amount
+}) => {
+  const paidAtDate = new Date();
+  const paymentRecord = {
+    status: 'PAID',
+    razorpayOrderId: orderId || null,
+    razorpayPaymentId: paymentId || null,
+    paymentMethod,
+    paidAt: paidAtDate.toISOString()
+  };
+
+  if (studentId) {
+    INVOICE_PAYMENT_OVERRIDES.set(getOverrideKey(studentId, month, year), paymentRecord);
+  }
+
+  // Also match fallback student by name if studentId differs
+  if (studentName) {
+    const matchedFallback = FALLBACK_STUDENTS.find(s => s.name.toLowerCase() === studentName.toLowerCase());
+    if (matchedFallback) {
+      INVOICE_PAYMENT_OVERRIDES.set(getOverrideKey(matchedFallback.id, month, year), paymentRecord);
+    }
+  }
+
+  try {
+    let profile = null;
+    if (studentId) {
+      profile = await prisma.studentProfile.findFirst({
+        where: { OR: [{ userId: studentId }, { id: studentId }] },
+        include: { grade: true }
+      });
+    }
+    if (!profile && studentName) {
+      profile = await prisma.studentProfile.findFirst({
+        where: { user: { name: { contains: studentName, mode: 'insensitive' } } },
+        include: { grade: true }
+      });
+    }
+
+    if (profile) {
+      INVOICE_PAYMENT_OVERRIDES.set(getOverrideKey(profile.userId, month, year), paymentRecord);
+      INVOICE_PAYMENT_OVERRIDES.set(getOverrideKey(profile.id, month, year), paymentRecord);
+
+      const existing = await prisma.invoice.findFirst({
+        where: { studentId: profile.id, month: Number(month), year: Number(year) }
+      });
+
+      if (existing) {
+        await prisma.invoice.update({
+          where: { id: existing.id },
+          data: {
+            status: 'PAID',
+            razorpayOrderId: orderId || existing.razorpayOrderId,
+            razorpayPaymentId: paymentId || existing.razorpayPaymentId,
+            paidAt: paidAtDate
+          }
+        });
+      } else {
+        await prisma.invoice.create({
+          data: {
+            studentId: profile.id,
+            month: Number(month),
+            year: Number(year),
+            totalHours: 0,
+            totalAmount: Number(amount) || 0,
+            status: 'PAID',
+            razorpayOrderId: orderId || null,
+            razorpayPaymentId: paymentId || null,
+            paidAt: paidAtDate
+          }
+        });
+      }
+    }
+  } catch (err) {
+    console.warn('Prisma markInvoicePaid notice:', err.message);
+  }
+
+  const allInvoices = await computeStudentInvoices(Number(month), Number(year));
+  return allInvoices.find(inv =>
+    (studentId && (inv.studentId === studentId || inv.profileId === studentId)) ||
+    (studentName && inv.studentName.toLowerCase() === studentName.toLowerCase())
+  ) || null;
+};
+
+/**
+ * Reset a demo student invoice back to UNPAID for repeatable walkthroughs
+ */
+const resetDemoInvoicePayment = async ({ studentId, studentName, month = 11, year = 2026 }) => {
+  if (studentId) {
+    INVOICE_PAYMENT_OVERRIDES.delete(getOverrideKey(studentId, month, year));
+  }
+  if (studentName) {
+    const matchedFallback = FALLBACK_STUDENTS.find(s => s.name.toLowerCase() === studentName.toLowerCase());
+    if (matchedFallback) {
+      INVOICE_PAYMENT_OVERRIDES.delete(getOverrideKey(matchedFallback.id, month, year));
+    }
+  }
+
+  try {
+    let profile = null;
+    if (studentId) {
+      profile = await prisma.studentProfile.findFirst({
+        where: { OR: [{ userId: studentId }, { id: studentId }] }
+      });
+    }
+    if (profile) {
+      INVOICE_PAYMENT_OVERRIDES.delete(getOverrideKey(profile.userId, month, year));
+      INVOICE_PAYMENT_OVERRIDES.delete(getOverrideKey(profile.id, month, year));
+      await prisma.invoice.updateMany({
+        where: { studentId: profile.id, month: Number(month), year: Number(year) },
+        data: { status: 'UNPAID', paidAt: null, razorpayOrderId: null, razorpayPaymentId: null }
+      });
+    }
+  } catch (err) {
+    console.warn('Prisma resetDemoInvoicePayment notice:', err.message);
+  }
+};
+
 module.exports = {
   getAdminInvoices,
   getAdminPayroll,
   getBillingSummary,
   getMyStudentInvoice,
   computeStudentInvoices,
-  computeTeacherPayroll
+  computeTeacherPayroll,
+  markInvoicePaid,
+  resetDemoInvoicePayment
 };
