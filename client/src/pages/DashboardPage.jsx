@@ -199,6 +199,7 @@ export default function DashboardPage() {
   // Homework Photo Upload & Review state (Student & Teacher Portals - Issue #8)
   const [homeworkList, setHomeworkList] = useState([]);
   const [selectedHomeworkId, setSelectedHomeworkId] = useState(null);
+  const [stagedHomeworkPhoto, setStagedHomeworkPhoto] = useState(null);
   const [isUploadingHomework, setIsUploadingHomework] = useState(false);
   const [homeworkUploadError, setHomeworkUploadError] = useState(null);
   const [lightboxImage, setLightboxImage] = useState(null);
@@ -937,28 +938,65 @@ export default function DashboardPage() {
     });
   };
 
-  // Student uploads completed notebook photo for an assignment
-  const handleStudentSubmitHomework = async (homeworkId, e) => {
+  // Student selects a notebook photo for preview (does NOT auto-submit)
+  const handleStudentSelectHomeworkFile = async (homeworkId, e) => {
     const file = e.target.files?.[0];
     if (!file || !homeworkId) return;
     setHomeworkUploadError(null);
-    setIsUploadingHomework(true);
     try {
       const dataUrl = await readImageFileAsDataUrl(file);
+      setStagedHomeworkPhoto({
+        homeworkId,
+        name: file.name,
+        size: `${(file.size / 1024).toFixed(1)} KB`,
+        dataUrl
+      });
+    } catch (err) {
+      setHomeworkUploadError(err.message || 'Failed to read selected photo.');
+    } finally {
+      e.target.value = '';
+    }
+  };
+
+  // Student explicitly confirms & submits the staged notebook photo
+  const handleStudentConfirmSubmitHomework = async (homeworkId) => {
+    if (!stagedHomeworkPhoto || stagedHomeworkPhoto.homeworkId !== homeworkId) return;
+    setHomeworkUploadError(null);
+    setIsUploadingHomework(true);
+    try {
       const res = await axios.post(`/api/homework/${homeworkId}/submit`, {
-        imageData: dataUrl,
-        fileName: file.name
+        imageData: stagedHomeworkPhoto.dataUrl,
+        fileName: stagedHomeworkPhoto.name
       });
       if (res.data?.homework) {
         setHomeworkList(prev => prev.map(h => h.id === homeworkId ? res.data.homework : h));
       }
+      setStagedHomeworkPhoto(null);
       setActionSuccess('Notebook photo submitted for teacher review.');
       setTimeout(() => setActionSuccess(''), 4000);
     } catch (err) {
-      setHomeworkUploadError(err.response?.data?.error || err.message || 'Failed to upload notebook photo.');
+      setHomeworkUploadError(err.response?.data?.error || err.message || 'Failed to submit notebook photo.');
     } finally {
       setIsUploadingHomework(false);
-      e.target.value = '';
+    }
+  };
+
+  // Student removes/withdraws an unreviewed submission
+  const handleStudentRemoveHomeworkSubmission = async (homeworkId) => {
+    setHomeworkUploadError(null);
+    setIsUploadingHomework(true);
+    try {
+      const res = await axios.delete(`/api/homework/${homeworkId}/submission`);
+      if (res.data?.homework) {
+        setHomeworkList(prev => prev.map(h => h.id === homeworkId ? res.data.homework : h));
+      }
+      setStagedHomeworkPhoto(null);
+      setActionSuccess('Submitted notebook photo removed.');
+      setTimeout(() => setActionSuccess(''), 4000);
+    } catch (err) {
+      setHomeworkUploadError(err.response?.data?.error || 'Failed to remove submission.');
+    } finally {
+      setIsUploadingHomework(false);
     }
   };
 
@@ -2440,7 +2478,7 @@ export default function DashboardPage() {
                       <button
                         key={hw.id}
                         type="button"
-                        onClick={() => { setSelectedHomeworkId(hw.id); setHomeworkUploadError(null); }}
+                        onClick={() => { setSelectedHomeworkId(hw.id); setStagedHomeworkPhoto(null); setHomeworkUploadError(null); }}
                         className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border ${
                           activeHw?.id === hw.id
                             ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
@@ -2571,14 +2609,73 @@ export default function DashboardPage() {
                       )}
                     </div>
 
-                    {/* Right Column: Interactive Notebook Upload & Live Preview (5 cols) */}
+                    {/* Right Column: Interactive Notebook Upload & Preview -> Submit -> Remove (5 cols) */}
                     <div className="lg:col-span-5 bg-white p-6 sm:p-7 rounded-2xl border border-slate-200/80 shadow-sm space-y-4">
                       <h4 className="font-bold text-sm text-slate-900 flex items-center gap-2">
                         <Upload className="w-4 h-4 text-indigo-600" />
                         <span>Upload Completed Notebook Photo</span>
                       </h4>
 
-                      {activeHw.studentSubmissionUrl ? (
+                      {/* Step A: Preview Staged Photo Before Submitting */}
+                      {stagedHomeworkPhoto && stagedHomeworkPhoto.homeworkId === activeHw.id ? (
+                        <div className="p-4 rounded-2xl bg-indigo-50/70 border border-indigo-200 space-y-3">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 block">
+                                Preview Ready &bull; Not Submitted Yet
+                              </span>
+                              <span className="text-xs font-bold text-slate-900 truncate block">
+                                {stagedHomeworkPhoto.name} ({stagedHomeworkPhoto.size})
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setStagedHomeworkPhoto(null)}
+                              className="px-2.5 py-1 rounded-lg bg-white hover:bg-red-50 text-red-600 border border-red-200 text-xs font-bold flex items-center gap-1 shrink-0 transition-colors"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>Remove</span>
+                            </button>
+                          </div>
+
+                          {!stagedHomeworkPhoto.dataUrl.startsWith('data:application/pdf') ? (
+                            <div
+                              onClick={() => setLightboxImage({ title: `Preview — ${stagedHomeworkPhoto.name}`, src: stagedHomeworkPhoto.dataUrl })}
+                              className="rounded-xl overflow-hidden border border-indigo-200 bg-white cursor-pointer"
+                            >
+                              <img
+                                src={stagedHomeworkPhoto.dataUrl}
+                                alt="Selected notebook preview"
+                                className="w-full max-h-52 object-contain"
+                              />
+                            </div>
+                          ) : (
+                            <div className="p-3 rounded-xl bg-white border border-indigo-100 text-xs font-semibold text-indigo-800">
+                              PDF selected and ready to submit.
+                            </div>
+                          )}
+
+                          <button
+                            type="button"
+                            disabled={isUploadingHomework}
+                            onClick={() => handleStudentConfirmSubmitHomework(activeHw.id)}
+                            className="w-full py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-all"
+                          >
+                            {isUploadingHomework ? (
+                              <>
+                                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                <span>Submitting...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Send className="w-4 h-4" />
+                                <span>Submit Homework for Review</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      ) : activeHw.studentSubmissionUrl ? (
+                        /* Step B: Already Submitted / Reviewed Card */
                         <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-3">
                           <div className="flex items-center justify-between gap-2">
                             <div className="flex items-center gap-2 min-w-0">
@@ -2588,7 +2685,7 @@ export default function DashboardPage() {
                               </span>
                             </div>
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-200 text-emerald-800 shrink-0">
-                              {activeHw.status === 'REVIEWED' ? 'Reviewed' : 'Uploaded'}
+                              {activeHw.status === 'REVIEWED' ? 'Reviewed' : 'Submitted'}
                             </span>
                           </div>
 
@@ -2605,42 +2702,53 @@ export default function DashboardPage() {
                             </div>
                           )}
 
-                          <p className="text-[11px] text-emerald-800 leading-relaxed">
-                            Saved securely to your assignment record for {activeHw.teacherName} to inspect. You can replace it anytime before review.
-                          </p>
+                          <div className="flex items-center justify-between gap-2 pt-1">
+                            <p className="text-[11px] text-emerald-800 leading-relaxed">
+                              {activeHw.status === 'REVIEWED'
+                                ? `Reviewed by ${activeHw.teacherName}.`
+                                : `Saved for ${activeHw.teacherName} to inspect.`}
+                            </p>
+                            {activeHw.status !== 'REVIEWED' && (
+                              <button
+                                type="button"
+                                disabled={isUploadingHomework}
+                                onClick={() => handleStudentRemoveHomeworkSubmission(activeHw.id)}
+                                className="px-2.5 py-1.5 rounded-xl bg-white hover:bg-red-50 text-red-600 border border-red-200 text-[11px] font-bold flex items-center gap-1 shrink-0 transition-colors"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span>Remove Photo</span>
+                              </button>
+                            )}
+                          </div>
                         </div>
                       ) : (
                         <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-200 text-amber-800 text-xs">
-                          No notebook photo uploaded yet. Take a clear photo of your handwritten notebook pages and upload below.
+                          No notebook photo uploaded yet. Select a clear photo to preview before submitting.
                         </div>
                       )}
 
-                      {/* Drag & Drop File Upload Area */}
-                      <label className={`border-2 border-dashed border-slate-200 hover:border-indigo-500 rounded-2xl p-6 flex flex-col items-center justify-center cursor-pointer transition-all bg-slate-50/50 hover:bg-indigo-50/20 group ${isUploadingHomework ? 'opacity-60 pointer-events-none' : ''}`}>
-                        <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mb-2 group-hover:scale-105 transition-transform">
-                          {isUploadingHomework ? (
-                            <div className="w-5 h-5 border-2 border-indigo-300 border-t-indigo-600 rounded-full animate-spin" />
-                          ) : (
+                      {/* Drag & Drop File Picker (hidden when reviewed or while staging preview is open) */}
+                      {activeHw.status !== 'REVIEWED' && (!stagedHomeworkPhoto || stagedHomeworkPhoto.homeworkId !== activeHw.id) && (
+                        <label className={`border-2 border-dashed border-slate-200 hover:border-indigo-500 rounded-2xl p-6 flex flex-col items-center justify-center cursor-pointer transition-all bg-slate-50/50 hover:bg-indigo-50/20 group ${isUploadingHomework ? 'opacity-60 pointer-events-none' : ''}`}>
+                          <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mb-2 group-hover:scale-105 transition-transform">
                             <Upload className="w-6 h-6 text-indigo-600" />
-                          )}
-                        </div>
-                        <span className="text-xs font-bold text-slate-800 group-hover:text-indigo-600 transition-colors text-center">
-                          {isUploadingHomework
-                            ? 'Uploading notebook photo...'
-                            : activeHw.studentSubmissionUrl
-                              ? 'Upload Revised Notebook Photo'
-                              : 'Select or Drop Notebook Photo'}
-                        </span>
-                        <span className="text-[11px] text-slate-400 mt-1 text-center">
-                          Supports JPG, PNG, WEBP, GIF or PDF up to 5 MB
-                        </span>
-                        <input
-                          type="file"
-                          accept="image/jpeg,image/png,image/webp,image/gif,.pdf"
-                          className="hidden"
-                          onChange={(e) => handleStudentSubmitHomework(activeHw.id, e)}
-                        />
-                      </label>
+                          </div>
+                          <span className="text-xs font-bold text-slate-800 group-hover:text-indigo-600 transition-colors text-center">
+                            {activeHw.studentSubmissionUrl
+                              ? 'Choose New Photo to Replace Submission'
+                              : 'Select Notebook Photo (Preview Before Submit)'}
+                          </span>
+                          <span className="text-[11px] text-slate-400 mt-1 text-center">
+                            Supports JPG, PNG, WEBP, GIF or PDF up to 5 MB
+                          </span>
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp,image/gif,.pdf"
+                            className="hidden"
+                            onChange={(e) => handleStudentSelectHomeworkFile(activeHw.id, e)}
+                          />
+                        </label>
+                      )}
                     </div>
 
                   </div>
