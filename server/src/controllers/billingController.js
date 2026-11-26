@@ -6,37 +6,64 @@ const { resolveGradeTier } = require('./scheduleController');
 // Memory store for invoice payment overrides (stores payment metadata keyed by invoice/student key)
 const INVOICE_PAYMENT_OVERRIDES = new Map();
 
-const getOverrideKey = (studentId, month = 11, year = 2026) => `inv-${studentId}-${year}-${month}`;
+const getCurrentBillingPeriod = () => {
+  const now = new Date();
+  return { month: now.getMonth() + 1, year: now.getFullYear() };
+};
+
+const getMonthDateRange = (month, year) => {
+  const m = Number(month);
+  const y = Number(year);
+  return {
+    startDate: new Date(Date.UTC(y, m - 1, 1, 0, 0, 0, 0)),
+    endDate: new Date(Date.UTC(y, m, 0, 23, 59, 59, 999)),
+    monthPrefix: `${y}-${String(m).padStart(2, '0')}`
+  };
+};
+
+const getOverrideKey = (studentId, month, year) => {
+  const cur = getCurrentBillingPeriod();
+  return `inv-${studentId}-${year || cur.year}-${month || cur.month}`;
+};
 
 /**
- * Helper to compute student monthly fee invoice data
+ * Helper to compute student monthly fee invoice data (strictly scoped to month/year)
  */
-const computeStudentInvoices = async (month = 11, year = 2026) => {
+const computeStudentInvoices = async (inputMonth, inputYear) => {
+  const cur = getCurrentBillingPeriod();
+  const month = Number(inputMonth || cur.month);
+  const year = Number(inputYear || cur.year);
+  const { startDate, endDate, monthPrefix } = getMonthDateRange(month, year);
+
   try {
-    // 1. Try querying Prisma database
-    const dbStudents = await prisma.studentProfile.findMany({
+    // 1. Try querying Prisma database with transient retry
+    const dbStudents = await prisma.withDbRetry(() => prisma.studentProfile.findMany({
       include: {
         user: true,
         grade: true,
         invoices: {
-          where: { month: Number(month), year: Number(year) }
+          where: { month, year }
         }
       }
-    });
+    }));
 
     if (dbStudents && dbStudents.length > 0) {
-      const allClassLogs = await prisma.classLog.findMany({
+      const monthClassLogs = await prisma.withDbRetry(() => prisma.classLog.findMany({
         where: {
-          attendanceStatus: 'PRESENT'
+          attendanceStatus: 'PRESENT',
+          classDate: {
+            gte: startDate,
+            lte: endDate
+          }
         },
         include: {
           session: true
         }
-      });
+      }));
 
       const invoices = dbStudents.map((st, index) => {
         const studentUserId = st.userId;
-        const studentLogs = allClassLogs.filter(l => l.session?.studentId === st.id);
+        const studentLogs = monthClassLogs.filter(l => l.session?.studentId === st.id);
         const attendedHours = studentLogs.reduce((sum, l) => sum + (l.durationHours || 0), 0);
         const hourlyRate = st.grade?.studentHourlyRate || 400.0;
         const totalAmount = Math.round(attendedHours * hourlyRate);
@@ -61,15 +88,16 @@ const computeStudentInvoices = async (month = 11, year = 2026) => {
           attendedHours: Number(attendedHours.toFixed(2)),
           completedClassesCount: studentLogs.length,
           totalAmount,
-          month: Number(month),
-          year: Number(year),
+          month,
+          year,
           monthName: new Date(year, month - 1, 1).toLocaleString('en-IN', { month: 'long', year: 'numeric' }),
           status: isPaid ? 'PAID' : 'UNPAID',
           razorpayOrderId: existingInvoice?.razorpayOrderId || override?.razorpayOrderId || null,
           razorpayPaymentId: existingInvoice?.razorpayPaymentId || override?.razorpayPaymentId || null,
           paymentMethod: override?.paymentMethod || (existingInvoice?.razorpayPaymentId ? 'Razorpay' : null),
           paidAt: existingInvoice?.paidAt || override?.paidAt || (totalAmount === 0 ? new Date().toISOString() : null),
-          createdAt: existingInvoice?.createdAt || new Date().toISOString()
+          createdAt: existingInvoice?.createdAt || new Date().toISOString(),
+          isFallback: false
         };
       });
 
@@ -79,17 +107,18 @@ const computeStudentInvoices = async (month = 11, year = 2026) => {
     console.warn('Prisma computeStudentInvoices notice:', err.message);
   }
 
-  // 2. Fallback to in-memory datasets
+  // 2. Fallback to in-memory datasets filtered by monthPrefix
+  const isCurrentPeriod = month === cur.month && year === cur.year;
   return FALLBACK_STUDENTS.map((st, index) => {
-    // Find logs for this student
     const studentLogs = CLASS_LOGS.filter(l => 
       (l.studentId === st.id || l.studentName.toLowerCase() === st.name.toLowerCase()) &&
-      (l.attendanceStatus === 'PRESENT' || l.isStudentPresent)
+      (l.attendanceStatus === 'PRESENT' || l.isStudentPresent) &&
+      String(l.date || '').startsWith(monthPrefix)
     );
 
     const attendedHours = studentLogs.length > 0 
       ? studentLogs.reduce((sum, l) => sum + (l.billableHours || 0), 0)
-      : (st.attendedHours || 0);
+      : (isCurrentPeriod ? (st.attendedHours || 0) : 0);
 
     const hourlyRate = st.hourlyRate || resolveGradeTier(st.grade).studentHourlyRate;
     const totalAmount = Math.round(attendedHours * hourlyRate);
@@ -109,44 +138,54 @@ const computeStudentInvoices = async (month = 11, year = 2026) => {
       grade: st.grade,
       hourlyRate,
       attendedHours: Number(attendedHours.toFixed(2)),
-      completedClassesCount: studentLogs.length || st.completedSessions || 0,
+      completedClassesCount: studentLogs.length || (isCurrentPeriod ? (st.completedSessions || 0) : 0),
       totalAmount,
-      month: Number(month),
-      year: Number(year),
+      month,
+      year,
       monthName: new Date(year, month - 1, 1).toLocaleString('en-IN', { month: 'long', year: 'numeric' }),
       status: isPaid ? 'PAID' : 'UNPAID',
       razorpayOrderId: override?.razorpayOrderId || null,
       razorpayPaymentId: override?.razorpayPaymentId || null,
       paymentMethod: override?.paymentMethod || null,
       paidAt: override?.paidAt || (isPaid ? new Date().toISOString() : null),
-      createdAt: st.joinedAt || new Date().toISOString()
+      createdAt: st.joinedAt || new Date().toISOString(),
+      isFallback: true
     };
   });
 };
 
 /**
- * Helper to compute teacher monthly payroll data
+ * Helper to compute teacher monthly payroll data (strictly scoped to month/year)
  */
-const computeTeacherPayroll = async (month = 11, year = 2026) => {
+const computeTeacherPayroll = async (inputMonth, inputYear) => {
+  const cur = getCurrentBillingPeriod();
+  const month = Number(inputMonth || cur.month);
+  const year = Number(inputYear || cur.year);
+  const { startDate, endDate, monthPrefix } = getMonthDateRange(month, year);
+
   try {
-    const dbTeachers = await prisma.teacherProfile.findMany({
+    const dbTeachers = await prisma.withDbRetry(() => prisma.teacherProfile.findMany({
       include: {
         user: true
       }
-    });
+    }));
 
     if (dbTeachers && dbTeachers.length > 0) {
-      const allClassLogs = await prisma.classLog.findMany({
+      const monthClassLogs = await prisma.withDbRetry(() => prisma.classLog.findMany({
         where: {
-          attendanceStatus: 'PRESENT'
+          attendanceStatus: 'PRESENT',
+          classDate: {
+            gte: startDate,
+            lte: endDate
+          }
         },
         include: {
           session: true
         }
-      });
+      }));
 
       return dbTeachers.map((t, index) => {
-        const teacherLogs = allClassLogs.filter(l => l.session?.teacherId === t.id);
+        const teacherLogs = monthClassLogs.filter(l => l.session?.teacherId === t.id);
         const taughtHours = teacherLogs.reduce((sum, l) => sum + (l.durationHours || 0), 0);
         const totalPayoutAmount = teacherLogs.reduce((sum, l) => sum + (l.teacherPayoutAmount || 0), 0) || Math.round(taughtHours * 250);
 
@@ -163,11 +202,12 @@ const computeTeacherPayroll = async (month = 11, year = 2026) => {
           taughtHours: Number(taughtHours.toFixed(2)),
           classesCount: teacherLogs.length,
           totalPayoutAmount: Math.round(totalPayoutAmount),
-          month: Number(month),
-          year: Number(year),
+          month,
+          year,
           monthName: new Date(year, month - 1, 1).toLocaleString('en-IN', { month: 'long', year: 'numeric' }),
           status: 'CALCULATED',
-          createdAt: new Date().toISOString()
+          createdAt: new Date().toISOString(),
+          isFallback: false
         };
       });
     }
@@ -175,20 +215,22 @@ const computeTeacherPayroll = async (month = 11, year = 2026) => {
     console.warn('Prisma computeTeacherPayroll notice:', err.message);
   }
 
-  // Fallback to in-memory teacher dataset
+  // Fallback to in-memory teacher dataset filtered by monthPrefix
+  const isCurrentPeriod = month === cur.month && year === cur.year;
   return FALLBACK_TEACHERS.map((t, index) => {
     const teacherLogs = CLASS_LOGS.filter(l => 
       (l.teacherId === t.id || l.teacherName.toLowerCase().includes(t.name.toLowerCase())) &&
-      (l.attendanceStatus === 'PRESENT' || l.isStudentPresent)
+      (l.attendanceStatus === 'PRESENT' || l.isStudentPresent) &&
+      String(l.date || '').startsWith(monthPrefix)
     );
 
     const taughtHours = teacherLogs.length > 0
       ? teacherLogs.reduce((sum, l) => sum + (l.billableHours || 0), 0)
-      : (t.totalHoursTaken || 0);
+      : (isCurrentPeriod ? (t.totalHoursTaken || 0) : 0);
 
     const totalPayoutAmount = teacherLogs.length > 0
       ? teacherLogs.reduce((sum, l) => sum + (l.teacherPayoutAmount || 0), 0)
-      : (t.accruedPayout || 0);
+      : (isCurrentPeriod ? (t.accruedPayout || 0) : 0);
 
     return {
       id: `pay-${t.id}-${year}-${month}`,
@@ -201,13 +243,14 @@ const computeTeacherPayroll = async (month = 11, year = 2026) => {
       subject: t.subject,
       defaultMeetLink: t.defaultMeetLink,
       taughtHours: Number(taughtHours.toFixed(2)),
-      classesCount: teacherLogs.length || t.classesTaken || 0,
+      classesCount: teacherLogs.length || (isCurrentPeriod ? (t.classesTaken || 0) : 0),
       totalPayoutAmount: Math.round(totalPayoutAmount),
-      month: Number(month),
-      year: Number(year),
+      month,
+      year,
       monthName: new Date(year, month - 1, 1).toLocaleString('en-IN', { month: 'long', year: 'numeric' }),
       status: 'CALCULATED',
-      createdAt: t.joinedAt || new Date().toISOString()
+      createdAt: t.joinedAt || new Date().toISOString(),
+      isFallback: true
     };
   });
 };
@@ -218,8 +261,10 @@ const computeTeacherPayroll = async (month = 11, year = 2026) => {
  */
 const getAdminInvoices = async (req, res) => {
   try {
-    const { month = 11, year = 2026, status = 'ALL', search = '' } = req.query;
+    const cur = getCurrentBillingPeriod();
+    const { month = cur.month, year = cur.year, status = 'ALL', search = '' } = req.query;
     let invoices = await computeStudentInvoices(Number(month), Number(year));
+    const isFallback = invoices.some(i => i.isFallback);
 
     if (status && status !== 'ALL') {
       invoices = invoices.filter(inv => inv.status.toUpperCase() === status.toUpperCase());
@@ -237,6 +282,7 @@ const getAdminInvoices = async (req, res) => {
 
     res.json({
       success: true,
+      isFallback,
       month: Number(month),
       year: Number(year),
       invoices,
@@ -254,8 +300,10 @@ const getAdminInvoices = async (req, res) => {
  */
 const getAdminPayroll = async (req, res) => {
   try {
-    const { month = 11, year = 2026, search = '' } = req.query;
+    const cur = getCurrentBillingPeriod();
+    const { month = cur.month, year = cur.year, search = '' } = req.query;
     let payroll = await computeTeacherPayroll(Number(month), Number(year));
+    const isFallback = payroll.some(p => p.isFallback);
 
     if (search && search.trim()) {
       const q = search.trim().toLowerCase();
@@ -268,6 +316,7 @@ const getAdminPayroll = async (req, res) => {
 
     res.json({
       success: true,
+      isFallback,
       month: Number(month),
       year: Number(year),
       payroll,
@@ -285,9 +334,11 @@ const getAdminPayroll = async (req, res) => {
  */
 const getBillingSummary = async (req, res) => {
   try {
-    const { month = 11, year = 2026 } = req.query;
+    const cur = getCurrentBillingPeriod();
+    const { month = cur.month, year = cur.year } = req.query;
     const invoices = await computeStudentInvoices(Number(month), Number(year));
     const payroll = await computeTeacherPayroll(Number(month), Number(year));
+    const isFallback = invoices.some(i => i.isFallback) || payroll.some(p => p.isFallback);
 
     const totalInvoiced = invoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
     const totalCollected = invoices.filter(inv => inv.status === 'PAID').reduce((sum, inv) => sum + inv.totalAmount, 0);
@@ -298,6 +349,7 @@ const getBillingSummary = async (req, res) => {
 
     res.json({
       success: true,
+      isFallback,
       month: Number(month),
       year: Number(year),
       monthName: new Date(year, month - 1, 1).toLocaleString('en-IN', { month: 'long', year: 'numeric' }),
@@ -326,9 +378,10 @@ const getBillingSummary = async (req, res) => {
  */
 const getMyStudentInvoice = async (req, res) => {
   try {
+    const cur = getCurrentBillingPeriod();
     const studentId = req.user.id;
     const studentName = req.user.name;
-    const { month = 11, year = 2026 } = req.query;
+    const { month = cur.month, year = cur.year } = req.query;
 
     const invoices = await computeStudentInvoices(Number(month), Number(year));
     let myInvoice = invoices.find(inv => 

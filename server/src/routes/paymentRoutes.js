@@ -102,7 +102,8 @@ router.get('/config', (req, res) => {
  */
 router.post('/create-order', authenticateToken, async (req, res) => {
   try {
-    const { amount, receiptId, studentName, studentId, month = 11, year = 2026 } = req.body;
+    const now = new Date();
+    const { amount, receiptId, studentName, studentId, month = now.getMonth() + 1, year = now.getFullYear() } = req.body;
 
     if (!amount || Number(amount) <= 0) {
       return res.status(400).json({
@@ -179,6 +180,7 @@ router.post('/create-order', authenticateToken, async (req, res) => {
  */
 router.post('/verify', authenticateToken, async (req, res) => {
   try {
+    const now = new Date();
     const {
       orderId,
       paymentId,
@@ -187,8 +189,8 @@ router.post('/verify', authenticateToken, async (req, res) => {
       paymentMethod,
       studentId,
       studentName,
-      month = 11,
-      year = 2026
+      month = now.getMonth() + 1,
+      year = now.getFullYear()
     } = req.body;
 
     const keyId = process.env.RAZORPAY_KEY_ID || '';
@@ -218,8 +220,10 @@ router.post('/verify', authenticateToken, async (req, res) => {
     const orderMeta = orderId ? SANDBOX_ORDERS.get(orderId) : null;
     const resolvedStudentId = studentId || orderMeta?.studentId || req.user?.id || null;
     const resolvedStudentName = studentName || orderMeta?.studentName || req.user?.name || null;
-    const resolvedMonth = Number(month || orderMeta?.month || 11);
-    const resolvedYear = Number(year || orderMeta?.year || 2026);
+    const curMonth = new Date().getMonth() + 1;
+    const curYear = new Date().getFullYear();
+    const resolvedMonth = Number(month || orderMeta?.month || curMonth);
+    const resolvedYear = Number(year || orderMeta?.year || curYear);
 
     const verifiedPaymentId = paymentId || `pay_test_${Date.now().toString(36).toUpperCase()}`;
     const resolvedOrderId = orderId || `order_test_${Date.now().toString(36)}`;
@@ -290,11 +294,13 @@ router.post('/webhook', async (req, res) => {
       const orderMeta = orderId ? SANDBOX_ORDERS.get(orderId) : null;
       const notes = paymentEntity.notes || orderEntity.notes || {};
 
+      const curMonth = new Date().getMonth() + 1;
+      const curYear = new Date().getFullYear();
       const updatedInvoice = await markInvoicePaid({
         studentId: notes.studentId || orderMeta?.studentId || null,
         studentName: notes.studentName || orderMeta?.studentName || null,
-        month: Number(notes.month || orderMeta?.month || 11),
-        year: Number(notes.year || orderMeta?.year || 2026),
+        month: Number(notes.month || orderMeta?.month || curMonth),
+        year: Number(notes.year || orderMeta?.year || curYear),
         orderId,
         paymentId,
         paymentMethod: paymentEntity.method || 'RAZORPAY_WEBHOOK',
@@ -323,11 +329,12 @@ router.post('/webhook', async (req, res) => {
  */
 router.post('/reset-demo', authenticateToken, async (req, res) => {
   try {
+    const now = new Date();
     await resetDemoInvoicePayment({
       studentId: req.user?.id || req.body?.studentId,
       studentName: req.user?.name || req.body?.studentName,
-      month: Number(req.body?.month || 11),
-      year: Number(req.body?.year || 2026)
+      month: Number(req.body?.month || (now.getMonth() + 1)),
+      year: Number(req.body?.year || now.getFullYear())
     });
     res.json({ success: true, message: 'Demo invoice reset to UNPAID' });
   } catch (error) {

@@ -291,12 +291,25 @@ const submitClassLog = async (req, res) => {
 };
 
 // GET /api/logs/monthly-summary
-// Dynamic running monthly metrics based on user role
+// Dynamic running monthly metrics based on user role (supports optional ?month=&year= filter)
 const getMonthlySummary = async (req, res) => {
   const { role, id, name } = req.user;
+  const reqMonth = req.query.month ? Number(req.query.month) : null;
+  const reqYear = req.query.year ? Number(req.query.year) : null;
+  const hasMonthFilter = Boolean(reqMonth && reqYear && !isNaN(reqMonth) && !isNaN(reqYear));
+
+  const dateFilter = hasMonthFilter
+    ? {
+        classDate: {
+          gte: new Date(Date.UTC(reqYear, reqMonth - 1, 1, 0, 0, 0, 0)),
+          lte: new Date(Date.UTC(reqYear, reqMonth, 0, 23, 59, 59, 999))
+        }
+      }
+    : undefined;
 
   try {
-    const dbLogs = await prisma.classLog.findMany({
+    const dbLogs = await prisma.withDbRetry(() => prisma.classLog.findMany({
+      ...(dateFilter ? { where: dateFilter } : {}),
       include: {
         session: {
           include: {
@@ -306,9 +319,9 @@ const getMonthlySummary = async (req, res) => {
         }
       },
       orderBy: { classDate: 'desc' }
-    });
+    }));
 
-    if (dbLogs && dbLogs.length > 0) {
+    if (dbLogs) {
       const formattedLogs = dbLogs.map(l => {
         const isPres = l.attendanceStatus === 'PRESENT';
         return {
@@ -356,6 +369,9 @@ const getMonthlySummary = async (req, res) => {
         summary: {
           totalBillableHours: Number(totalBillableHours.toFixed(2)),
           totalClassesCount,
+          month: reqMonth,
+          year: reqYear,
+          isFallback: false,
           logs: userLogs
         }
       });
@@ -365,10 +381,14 @@ const getMonthlySummary = async (req, res) => {
   }
 
   let userLogs = CLASS_LOGS;
+  if (hasMonthFilter) {
+    const prefix = `${reqYear}-${String(reqMonth).padStart(2, '0')}`;
+    userLogs = userLogs.filter(l => String(l.date || '').startsWith(prefix));
+  }
   if (role === 'STUDENT') {
-    userLogs = CLASS_LOGS.filter(l => l.studentId === id || (name && l.studentName.toLowerCase().includes(name.toLowerCase())));
+    userLogs = userLogs.filter(l => l.studentId === id || (name && l.studentName.toLowerCase().includes(name.toLowerCase())));
   } else if (role === 'TEACHER') {
-    userLogs = CLASS_LOGS.filter(l => l.teacherId === id || (name && l.teacherName.toLowerCase().includes(name.toLowerCase())));
+    userLogs = userLogs.filter(l => l.teacherId === id || (name && l.teacherName.toLowerCase().includes(name.toLowerCase())));
   }
 
   const totalBillableHours = userLogs
@@ -380,6 +400,9 @@ const getMonthlySummary = async (req, res) => {
     summary: {
       totalBillableHours: Number(totalBillableHours.toFixed(2)),
       totalClassesCount,
+      month: reqMonth,
+      year: reqYear,
+      isFallback: true,
       logs: userLogs
     }
   });

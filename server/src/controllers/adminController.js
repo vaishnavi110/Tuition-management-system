@@ -94,7 +94,7 @@ const FALLBACK_TEACHERS = [
 // Comprehensive student & teacher directory for Academy Director / Admin
 const getAdminUsers = async (req, res) => {
   try {
-    const users = await prisma.user.findMany({
+    const users = await prisma.withDbRetry(() => prisma.user.findMany({
       include: {
         student: {
           include: {
@@ -117,7 +117,7 @@ const getAdminUsers = async (req, res) => {
         }
       },
       orderBy: { createdAt: 'desc' }
-    });
+    }));
 
     if (users && users.length > 0) {
       const students = [];
@@ -211,6 +211,7 @@ const getAdminUsers = async (req, res) => {
 
       return res.json({
         success: true,
+        isFallback: false,
         totalUsers: users.length,
         studentsCount: students.length,
         teachersCount: teachers.length,
@@ -227,6 +228,7 @@ const getAdminUsers = async (req, res) => {
   // Graceful in-memory fallback
   res.json({
     success: true,
+    isFallback: true,
     totalUsers: FALLBACK_STUDENTS.length + FALLBACK_TEACHERS.length + 1,
     studentsCount: FALLBACK_STUDENTS.length,
     teachersCount: FALLBACK_TEACHERS.length,
