@@ -904,9 +904,45 @@ async function runTestSuite() {
     assert(grade4RegRes.data?.user?.hourlyRate === 300, `Grade 4 student inherits default ₹300/hr Primary rate (got: ${grade4RegRes.data?.user?.hourlyRate})`);
 
     // -------------------------------------------------------------------------
-    // 17. Automated Teardown of Temporary Test Users
+    // 17. Dynamic Monthly Billing Filters & DB Fallback Indicator (Issue #61)
     // -------------------------------------------------------------------------
-    console.log('\n--- 17. Automated Teardown of Temporary Test Users ---');
+    console.log('\n--- 17. Dynamic Monthly Billing Filters & DB Fallback Indicator ---');
+
+    const dirUsersRes = await request('GET', '/admin/users', null, adminToken);
+    assert(dirUsersRes.status === 200, 'Admin directory endpoint responds with HTTP 200');
+    assert(typeof dirUsersRes.data?.isFallback === 'boolean', 'Admin directory returns boolean isFallback indicator');
+
+    const curNow = new Date();
+    const curMonth = curNow.getMonth() + 1;
+    const curYear = curNow.getFullYear();
+
+    const curInvoicesRes = await request('GET', `/billing/invoices?month=${curMonth}&year=${curYear}`, null, adminToken);
+    assert(curInvoicesRes.status === 200, 'Current month invoices endpoint responds with HTTP 200');
+    assert(typeof curInvoicesRes.data?.isFallback === 'boolean', 'Invoices endpoint returns boolean isFallback indicator');
+    assert(curInvoicesRes.data?.month === curMonth && curInvoicesRes.data?.year === curYear, 'Invoices response echoes requested month and year');
+
+    const emptyMonthInvRes = await request('GET', '/billing/invoices?month=1&year=2028', null, adminToken);
+    assert(emptyMonthInvRes.status === 200, 'Future empty month invoices query responds with HTTP 200');
+    assert(
+      Array.isArray(emptyMonthInvRes.data?.invoices) &&
+        emptyMonthInvRes.data.invoices.every(inv => inv.attendedHours === 0 && inv.totalAmount === 0),
+      'Future empty month (Jan 2028) returns 0 attended hours and 0 billed amount across invoices'
+    );
+
+    const emptyMonthSummaryRes = await request('GET', '/billing/summary?month=1&year=2028', null, adminToken);
+    assert(emptyMonthSummaryRes.status === 200 && emptyMonthSummaryRes.data?.metrics?.totalInvoiced === 0, 'Billing summary filters strictly by month/year (Jan 2028 = ₹0)');
+
+    const emptyMonthLogsRes = await request('GET', '/logs/monthly-summary?month=1&year=2028', null, adminToken);
+    assert(emptyMonthLogsRes.status === 200, 'Monthly logs summary accepts explicit month/year params');
+    assert(
+      emptyMonthLogsRes.data?.summary?.totalBillableHours === 0 && (emptyMonthLogsRes.data?.summary?.logs || []).length === 0,
+      'Monthly logs summary returns 0 hours and 0 logs for empty future month (Jan 2028)'
+    );
+
+    // -------------------------------------------------------------------------
+    // 18. Automated Teardown of Temporary Test Users
+    // -------------------------------------------------------------------------
+    console.log('\n--- 18. Automated Teardown of Temporary Test Users ---');
     let cleanupSuccess = 0;
     for (const userId of createdTestUserIds) {
       try {

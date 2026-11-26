@@ -140,7 +140,16 @@ export default function DashboardPage() {
   const [gradeFilter, setGradeFilter] = useState('ALL');
   const [auditProofFilter, setAuditProofFilter] = useState('ALL');
 
-  // 💰 Admin Automated Invoicing & Teacher Payroll state (Issue #6)
+  // 💰 Admin Automated Invoicing & Teacher Payroll state (Issue #6 & #61)
+  const PAGE_SIZE = 15;
+  const nowBilling = new Date();
+  const [billingMonth, setBillingMonth] = useState(nowBilling.getMonth() + 1);
+  const [billingYear, setBillingYear] = useState(nowBilling.getFullYear());
+  const [billingIsFallback, setBillingIsFallback] = useState(false);
+  const [directoryPage, setDirectoryPage] = useState(1);
+  const [billingPage, setBillingPage] = useState(1);
+  const [auditPage, setAuditPage] = useState(1);
+
   const [adminInvoices, setAdminInvoices] = useState([]);
   const [adminPayroll, setAdminPayroll] = useState([]);
   const [billingSummary, setBillingSummary] = useState(null);
@@ -152,6 +161,7 @@ export default function DashboardPage() {
 
   // Admin Academy Directory state (Students & Teachers Roster)
   const [adminDirectory, setAdminDirectory] = useState({
+    isFallback: false,
     students: [],
     teachers: [],
     admins: [],
@@ -258,8 +268,8 @@ export default function DashboardPage() {
         amount: totalPayableFee,
         studentId: user?.id,
         studentName: user?.name,
-        month: 11,
-        year: 2026,
+        month: billingMonth,
+        year: billingYear,
         receiptId: myStudentInvoice?.invoiceNumber || `REC-${Date.now()}`
       }).catch(() => ({
         data: {
@@ -289,7 +299,7 @@ export default function DashboardPage() {
         amount: order?.amount || totalPayableFee * 100,
         currency: 'INR',
         name: 'TuitionHub Coaching Academy',
-        description: `Monthly Tuition Fee (${user?.grade || 'Grade 10'} • November 2026)`,
+        description: `Monthly Tuition Fee (${user?.grade || 'Grade 10'} • ${selectedBillingPeriodLabel})`,
         image: 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
         order_id: order?.id && !order.id.startsWith('order_test_') ? order.id : undefined,
         handler: async function (response) {
@@ -302,8 +312,8 @@ export default function DashboardPage() {
               paymentMethod: 'RAZORPAY_OFFICIAL',
               studentId: user?.id,
               studentName: user?.name,
-              month: 11,
-              year: 2026
+              month: billingMonth,
+              year: billingYear
             });
 
             if (verifyRes.data?.invoice) {
@@ -386,8 +396,8 @@ export default function DashboardPage() {
         amount: totalPayableFee,
         studentId: user?.id,
         studentName: user?.name,
-        month: 11,
-        year: 2026,
+        month: billingMonth,
+        year: billingYear,
         receiptId: myStudentInvoice?.invoiceNumber || `REC-${Date.now()}`
       }).catch(() => ({
         data: {
@@ -412,8 +422,8 @@ export default function DashboardPage() {
         paymentMethod: razorpayMethod,
         studentId: user?.id,
         studentName: user?.name,
-        month: 11,
-        year: 2026
+        month: billingMonth,
+        year: billingYear
       }).catch(() => ({
         data: {
           payment: {
@@ -447,7 +457,7 @@ export default function DashboardPage() {
 
   const handleResetDemoFeePayment = async () => {
     try {
-      await axios.post('/api/payment/reset-demo', { month: 11, year: 2026 }).catch(() => {});
+      await axios.post('/api/payment/reset-demo', { month: billingMonth, year: billingYear }).catch(() => {});
     } catch (e) {
       console.warn('Reset demo bill notice:', e);
     }
@@ -542,19 +552,62 @@ export default function DashboardPage() {
     ? `${logDurationInfo.hours} hrs (${logDurationInfo.minutes} mins)` 
     : 'Invalid Time';
 
-  // Fetch initial data
+  // Dynamic billing period options (rolling 6 months) and pagination helpers
+  const buildBillingMonthOptions = () => {
+    const opts = [];
+    const base = new Date();
+    base.setDate(1);
+    for (let i = 0; i < 6; i++) {
+      const d = new Date(base.getFullYear(), base.getMonth() - i, 1);
+      const m = d.getMonth() + 1;
+      const y = d.getFullYear();
+      opts.push({
+        value: `${y}-${String(m).padStart(2, '0')}`,
+        month: m,
+        year: y,
+        label: d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+      });
+    }
+    return opts;
+  };
+  const billingMonthOptions = buildBillingMonthOptions();
+  const selectedBillingPeriodLabel = new Date(billingYear, billingMonth - 1, 1).toLocaleDateString('en-US', {
+    month: 'long',
+    year: 'numeric'
+  });
+  const selectedBillingCycleRange = (() => {
+    const start = new Date(billingYear, billingMonth - 1, 1);
+    const end = new Date(billingYear, billingMonth, 0);
+    const shortMonth = start.toLocaleDateString('en-US', { month: 'short' });
+    return `${shortMonth} 1 – ${shortMonth} ${end.getDate()}, ${billingYear}`;
+  })();
+
+  const handleBillingPeriodChange = (periodStr) => {
+    const [yStr, mStr] = String(periodStr || '').split('-');
+    const nextYear = parseInt(yStr, 10);
+    const nextMonth = parseInt(mStr, 10);
+    if (!Number.isInteger(nextYear) || !Number.isInteger(nextMonth)) return;
+    setBillingYear(nextYear);
+    setBillingMonth(nextMonth);
+    setBillingPage(1);
+    setAuditPage(1);
+    fetchData(nextMonth, nextYear);
+  };
+
+  // Fetch initial data (or refresh for a selected billing month/year)
   useEffect(() => {
-    fetchData();
+    fetchData(billingMonth, billingYear);
   }, [user]);
 
-  const fetchData = async () => {
+  const fetchData = async (targetMonth = billingMonth, targetYear = billingYear) => {
     setBillingError(null);
     try {
+      const periodQuery = `month=${targetMonth}&year=${targetYear}`;
       const [gradesRes, sessionsRes, attendanceRes, logsRes, homeworkRes] = await Promise.all([
         axios.get('/api/schedule/grades').catch(() => ({ data: { grades: [] } })),
         axios.get('/api/schedule/sessions').catch(() => ({ data: { sessions: [] } })),
         axios.get('/api/attendance/all').catch(() => ({ data: { attendance: {} } })),
-        axios.get('/api/logs/monthly-summary').catch(() => ({ data: { summary: { totalBillableHours: 0, logs: [] } } })),
+        axios.get(`/api/logs/monthly-summary?${periodQuery}`).catch(() => ({ data: { summary: { totalBillableHours: 0, logs: [] } } })),
         axios.get('/api/homework').catch(() => ({ data: { homeworks: [] } }))
       ]);
 
@@ -580,10 +633,13 @@ export default function DashboardPage() {
         setLogEndTime(loadedSessions[0].endTime || '18:15'); // 75 mins demo standard
       }
 
+      let studentFallback = Boolean(logsRes?.data?.isFallback);
+
       // Hydrate Student's persistent monthly invoice & payment status
       if (user?.role === 'STUDENT') {
         try {
-          const myInvRes = await axios.get('/api/billing/my-invoice').catch(() => ({ data: null }));
+          const myInvRes = await axios.get(`/api/billing/my-invoice?${periodQuery}`).catch(() => ({ data: null }));
+          if (myInvRes?.data?.isFallback) studentFallback = true;
           const inv = myInvRes?.data?.invoice;
           if (inv) {
             setMyStudentInvoice(inv);
@@ -597,9 +653,12 @@ export default function DashboardPage() {
                   ? new Date(inv.paidAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
                   : 'Settled'
               });
-            } else if (inv.status === 'UNPAID') {
+            } else {
               setPaidRecord(null);
             }
+          } else {
+            setMyStudentInvoice(null);
+            setPaidRecord(null);
           }
         } catch (e) {
           console.warn('Student invoice fetch notice:', e);
@@ -627,9 +686,9 @@ export default function DashboardPage() {
           const [adminUsersRes, adminInvitesRes, billingSumRes, invoicesRes, payrollRes] = await Promise.all([
             axios.get('/api/admin/users').catch(() => ({ data: null })),
             axios.get('/api/admin/invites').catch(() => ({ data: null })),
-            axios.get('/api/billing/summary').catch(() => ({ data: null })),
-            axios.get('/api/billing/invoices').catch(() => ({ data: null })),
-            axios.get('/api/billing/payroll').catch(() => ({ data: null }))
+            axios.get(`/api/billing/summary?${periodQuery}`).catch(() => ({ data: null })),
+            axios.get(`/api/billing/invoices?${periodQuery}`).catch(() => ({ data: null })),
+            axios.get(`/api/billing/payroll?${periodQuery}`).catch(() => ({ data: null }))
           ]);
           if (adminUsersRes?.data?.success) {
             setAdminDirectory(adminUsersRes.data);
@@ -646,9 +705,17 @@ export default function DashboardPage() {
           if (payrollRes?.data?.payroll) {
             setAdminPayroll(payrollRes.data.payroll);
           }
+          setBillingIsFallback(Boolean(
+            studentFallback ||
+            billingSumRes?.data?.isFallback ||
+            invoicesRes?.data?.isFallback ||
+            payrollRes?.data?.isFallback
+          ));
         } catch (e) {
           console.warn('Admin users/invites/billing directory fetch notice:', e);
         }
+      } else {
+        setBillingIsFallback(studentFallback);
       }
     } catch (err) {
       console.error('Failed to load verified billing data', err);
@@ -1309,6 +1376,66 @@ export default function DashboardPage() {
 
     return matchesSearch && matchesSubject;
   });
+
+  // Reset pagination to page 1 when search queries, filters, sub-tabs, or billing period change
+  useEffect(() => {
+    setDirectoryPage(1);
+  }, [adminDirectoryTab, adminDirectorySearch, adminDirectoryGradeFilter, adminDirectorySubjectFilter]);
+
+  useEffect(() => {
+    setAuditPage(1);
+  }, [searchQuery, gradeFilter, auditProofFilter, billingMonth, billingYear]);
+
+  useEffect(() => {
+    setBillingPage(1);
+  }, [billingSubTab, invoiceSearchQuery, invoiceStatusFilter, billingMonth, billingYear]);
+
+  // Shared pagination helper for 400+ scale directories, billing tables, and lecture audits
+  const paginateItems = (items, page) => {
+    const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
+    const safePage = Math.min(Math.max(1, page), totalPages);
+    const start = (safePage - 1) * PAGE_SIZE;
+    return {
+      pagedItems: items.slice(start, start + PAGE_SIZE),
+      safePage,
+      totalPages,
+      startIndex: items.length === 0 ? 0 : start + 1,
+      endIndex: Math.min(start + PAGE_SIZE, items.length),
+      totalItems: items.length
+    };
+  };
+
+  const renderPaginationBar = (pageInfo, onPageChange) => {
+    if (pageInfo.totalPages <= 1) return null;
+    return (
+      <div className="mt-4 pt-3 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-500">
+        <span>
+          Showing <strong className="text-slate-800">{pageInfo.startIndex}–{pageInfo.endIndex}</strong> of <strong className="text-slate-800">{pageInfo.totalItems}</strong>
+        </span>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            disabled={pageInfo.safePage <= 1}
+            onClick={() => onPageChange(pageInfo.safePage - 1)}
+            className="px-3 py-1.5 rounded-lg border border-slate-200 font-semibold text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            ← Prev
+          </button>
+          <span className="font-bold text-slate-700 px-2">
+            Page {pageInfo.safePage} of {pageInfo.totalPages}
+          </span>
+          <button
+            type="button"
+            disabled={pageInfo.safePage >= pageInfo.totalPages}
+            onClick={() => onPageChange(pageInfo.safePage + 1)}
+            className="px-3 py-1.5 rounded-lg border border-slate-200 font-semibold text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            Next →
+          </button>
+        </div>
+      </div>
+    );
+  };
 
   const getHeaderTitle = () => {
     if (role === 'STUDENT') {
@@ -2077,7 +2204,7 @@ export default function DashboardPage() {
                   <div>
                     <div className="flex items-center gap-2 mb-1.5">
                       <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
-                        Official Fee Statement &bull; November 2026
+                        Official Fee Statement &bull; {selectedBillingPeriodLabel}
                       </span>
                       <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${
                         paidRecord 
@@ -2101,7 +2228,17 @@ export default function DashboardPage() {
                     </p>
                   </div>
 
-                  <div className="flex items-center gap-2.5">
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    <select
+                      aria-label="Billing Month"
+                      value={`${billingYear}-${String(billingMonth).padStart(2, '0')}`}
+                      onChange={(e) => handleBillingPeriodChange(e.target.value)}
+                      className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    >
+                      {billingMonthOptions.map(opt => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
                     {paidRecord ? (
                       <button
                         onClick={handleResetDemoFeePayment}
@@ -2231,7 +2368,7 @@ export default function DashboardPage() {
                       </p>
                     </div>
                     <span className="text-xs font-semibold text-slate-500 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
-                      Billing Cycle: Nov 1 – Nov 30, 2026
+                      Billing Cycle: {selectedBillingCycleRange}
                     </span>
                   </div>
 
@@ -3656,11 +3793,34 @@ export default function DashboardPage() {
                   <ShieldCheck className="w-3.5 h-3.5" />
                   <span>Admin Profile</span>
                 </button>
-                <span className="text-xs px-3 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl font-bold">
-                  ● Live Sync
+                <span className={`text-xs px-3 py-2 rounded-xl font-bold border ${
+                  (adminDirectory.isFallback || billingIsFallback)
+                    ? 'bg-amber-50 text-amber-700 border-amber-200'
+                    : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                }`}>
+                  {(adminDirectory.isFallback || billingIsFallback) ? '● Offline Fallback' : '● Live Sync'}
                 </span>
               </div>
             </div>
+
+            {(adminDirectory.isFallback || billingIsFallback) && (
+              <div className="p-4 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+                <div className="flex items-start gap-2.5 text-xs">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold block">⚠️ Live Database Temporarily Unreachable — Showing Offline Demo Data</span>
+                    <span className="text-amber-800">Showing cached fallback records while PostgreSQL connectivity recovers. Click retry to load live users and invoices.</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => fetchData(billingMonth, billingYear)}
+                  className="px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold whitespace-nowrap self-start sm:self-auto transition-colors"
+                >
+                  Retry Connection
+                </button>
+              </div>
+            )}
 
             {/* Tab 1: Academy Overview & Metrics */}
             {activeTab === 'OVERVIEW' && (
@@ -4126,6 +4286,7 @@ export default function DashboardPage() {
                       No matching students found in directory.
                     </div>
                   ) : (
+                    <>
                     <table className="w-full text-left text-sm">
                       <thead>
                         <tr className="border-b border-slate-200 text-[11px] uppercase tracking-wider text-slate-400">
@@ -4139,7 +4300,7 @@ export default function DashboardPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {filteredDirectoryStudents.map((student) => (
+                        {paginateItems(filteredDirectoryStudents, directoryPage).pagedItems.map((student) => (
                           <tr key={student.id} className="hover:bg-slate-50/60 transition-colors">
                             <td className="py-3">
                               <div className="flex items-center gap-2.5">
@@ -4219,6 +4380,8 @@ export default function DashboardPage() {
                         ))}
                       </tbody>
                     </table>
+                    {renderPaginationBar(paginateItems(filteredDirectoryStudents, directoryPage), setDirectoryPage)}
+                  </>
                   )}
                 </div>
               )}
@@ -4231,6 +4394,7 @@ export default function DashboardPage() {
                       No matching teachers found in directory.
                     </div>
                   ) : (
+                    <>
                     <table className="w-full text-left text-sm">
                       <thead>
                         <tr className="border-b border-slate-200 text-[11px] uppercase tracking-wider text-slate-400">
@@ -4242,7 +4406,7 @@ export default function DashboardPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {filteredDirectoryTeachers.map((teacher) => (
+                        {paginateItems(filteredDirectoryTeachers, directoryPage).pagedItems.map((teacher) => (
                           <tr key={teacher.id} className="hover:bg-slate-50/60 transition-colors">
                             <td className="py-3">
                               <div className="flex items-center gap-2.5">
@@ -4310,6 +4474,8 @@ export default function DashboardPage() {
                         ))}
                       </tbody>
                     </table>
+                    {renderPaginationBar(paginateItems(filteredDirectoryTeachers, directoryPage), setDirectoryPage)}
+                  </>
                   )}
                 </div>
               )}
@@ -4546,7 +4712,7 @@ export default function DashboardPage() {
                               </td>
                             </tr>
                           ) : (
-                            filteredLogs.map((log) => {
+                            paginateItems(filteredLogs, auditPage).pagedItems.map((log) => {
                               const recUrl = log.recordingUrl || sessions.find(s => s.id === log.sessionId)?.recordingUrl;
                               const sessionObj = sessions.find(s => s.id === log.sessionId) || { id: log.sessionId, recordingUrl: recUrl };
                               const videoInfo = getEmbeddableVideoUrl(recUrl);
@@ -4622,6 +4788,7 @@ export default function DashboardPage() {
                           )}
                         </tbody>
                       </table>
+                      {renderPaginationBar(paginateItems(filteredLogs, auditPage), setAuditPage)}
                     </div>
                   </div>
                 </div>
@@ -4719,8 +4886,20 @@ export default function DashboardPage() {
                         <p className="text-xs text-slate-500 mt-0.5">Calculated automatically from verified teaching hours: Hours &times; Grade Standard Rates.</p>
                       </div>
 
-                      {/* Sub-tab Switcher */}
-                      <div className="flex items-center p-1 bg-slate-100 rounded-xl">
+                      {/* Billing Period Picker + Sub-tab Switcher */}
+                      <div className="flex flex-wrap items-center gap-2.5">
+                        <select
+                          aria-label="Admin Billing Period"
+                          value={`${billingYear}-${String(billingMonth).padStart(2, '0')}`}
+                          onChange={(e) => handleBillingPeriodChange(e.target.value)}
+                          className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        >
+                          {billingMonthOptions.map(opt => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                          ))}
+                        </select>
+
+                        <div className="flex items-center p-1 bg-slate-100 rounded-xl">
                         <button
                           onClick={() => setBillingSubTab('INVOICES')}
                           className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
@@ -4751,6 +4930,7 @@ export default function DashboardPage() {
                             {adminPayroll.length}
                           </span>
                         </button>
+                      </div>
                       </div>
                     </div>
 
@@ -4806,7 +4986,7 @@ export default function DashboardPage() {
                                 </td>
                               </tr>
                             ) : (
-                              filteredInvoices.map((inv) => (
+                              paginateItems(filteredInvoices, billingPage).pagedItems.map((inv) => (
                                 <tr key={inv.id} className="hover:bg-slate-50/60 transition-colors">
                                   <td className="py-3 text-xs">
                                     <div className="font-bold text-slate-900 font-mono">{inv.invoiceNumber}</div>
@@ -4860,6 +5040,7 @@ export default function DashboardPage() {
                             )}
                           </tbody>
                         </table>
+                        {renderPaginationBar(paginateItems(filteredInvoices, billingPage), setBillingPage)}
                       </div>
                     )}
 
@@ -4887,7 +5068,7 @@ export default function DashboardPage() {
                                 </td>
                               </tr>
                             ) : (
-                              filteredPayroll.map((pay) => (
+                              paginateItems(filteredPayroll, billingPage).pagedItems.map((pay) => (
                                 <tr key={pay.id} className="hover:bg-slate-50/60 transition-colors">
                                   <td className="py-3 text-xs font-mono font-bold text-slate-900">
                                     {pay.payrollNumber}
@@ -4924,6 +5105,7 @@ export default function DashboardPage() {
                             )}
                           </tbody>
                         </table>
+                        {renderPaginationBar(paginateItems(filteredPayroll, billingPage), setBillingPage)}
                       </div>
                     )}
                   </div>
@@ -5227,7 +5409,7 @@ export default function DashboardPage() {
                 <div>
                   <h3 className="font-extrabold text-slate-900 text-base">TuitionHub Coaching Academy</h3>
                   <span className="text-[10px] text-indigo-700 font-mono font-semibold">
-                    Monthly Fee Receipt &bull; {myStudentInvoice?.invoiceNumber || '#INV-202611-001'}
+                    Monthly Fee Receipt &bull; {myStudentInvoice?.invoiceNumber || `#INV-${billingYear}${String(billingMonth).padStart(2, '0')}-001`}
                   </span>
                 </div>
               </div>
@@ -5245,7 +5427,7 @@ export default function DashboardPage() {
                 </div>
                 <div>
                   <span className="text-slate-400 text-[10px] uppercase font-bold block">Billing Period</span>
-                  <span className="font-bold text-slate-900 block mt-0.5">November 2026</span>
+                  <span className="font-bold text-slate-900 block mt-0.5">{selectedBillingPeriodLabel}</span>
                   <span className={`font-bold px-2 py-0.5 rounded border text-[10px] inline-block mt-1 ${
                     paidRecord 
                       ? 'bg-emerald-50 text-emerald-800 border-emerald-200' 
