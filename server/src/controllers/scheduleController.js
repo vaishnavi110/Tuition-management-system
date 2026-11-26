@@ -1,11 +1,62 @@
 const prisma = require('../prisma');
 
-// In-memory fallback data store for local MVP development
+// In-memory fallback data store covering LKG through 12th Standard
 let GRADES = [
-  { id: 'grade-1', name: 'Grade 8 – 9', studentHourlyRate: 350, teacherHourlyRate: 220 },
+  { id: 'grade-preprimary', name: 'LKG – UKG (Pre-Primary)', studentHourlyRate: 250, teacherHourlyRate: 150 },
+  { id: 'grade-primary', name: 'Grade 1 – 5 (Primary)', studentHourlyRate: 300, teacherHourlyRate: 180 },
+  { id: 'grade-middle', name: 'Grade 6 – 7 (Middle School)', studentHourlyRate: 320, teacherHourlyRate: 200 },
+  { id: 'grade-1', name: 'Grade 8 – 9 (Foundation)', studentHourlyRate: 350, teacherHourlyRate: 220 },
   { id: 'grade-2', name: 'Grade 10 (Board)', studentHourlyRate: 400, teacherHourlyRate: 250 },
   { id: 'grade-3', name: 'Grade 11 – 12 (Board / JEE)', studentHourlyRate: 600, teacherHourlyRate: 350 }
 ];
+
+/**
+ * Resolves any student standard (LKG, UKG, Grade 1 .. Grade 12) to its configured Grade rate card
+ */
+const resolveGradeTier = (gradeName, gradesSource = GRADES) => {
+  const list = Array.isArray(gradesSource) && gradesSource.length > 0 ? gradesSource : GRADES;
+  const g = String(gradeName || '').trim();
+  const lower = g.toLowerCase();
+
+  // Direct/exact match first
+  const exact = list.find(item => item.name.toLowerCase() === lower);
+  if (exact) return exact;
+
+  // Match Pre-Primary (LKG / UKG)
+  if (/lkg|ukg|nursery|pre[-\s]?primary/i.test(lower)) {
+    return list.find(item => /lkg|ukg|pre[-\s]?primary/i.test(item.name))
+      || { id: 'grade-preprimary', name: 'LKG – UKG (Pre-Primary)', studentHourlyRate: 250, teacherHourlyRate: 150 };
+  }
+
+  // Extract standalone grade number safely (avoids matching '1' inside '10'/'11'/'12')
+  const numMatch = lower.match(/\b(\d{1,2})\b/);
+  const gradeNum = numMatch ? parseInt(numMatch[1], 10) : null;
+
+  if (gradeNum !== null) {
+    if (gradeNum >= 11) {
+      return list.find(item => /\b11\b|\b12\b/.test(item.name))
+        || { id: 'grade-3', name: 'Grade 11 – 12 (Board / JEE)', studentHourlyRate: 600, teacherHourlyRate: 350 };
+    }
+    if (gradeNum === 10) {
+      return list.find(item => /\b10\b/.test(item.name))
+        || { id: 'grade-2', name: 'Grade 10 (Board)', studentHourlyRate: 400, teacherHourlyRate: 250 };
+    }
+    if (gradeNum >= 8 && gradeNum <= 9) {
+      return list.find(item => /\b8\b|\b9\b/.test(item.name))
+        || { id: 'grade-1', name: 'Grade 8 – 9 (Foundation)', studentHourlyRate: 350, teacherHourlyRate: 220 };
+    }
+    if (gradeNum >= 6 && gradeNum <= 7) {
+      return list.find(item => /\b6\b|\b7\b/.test(item.name))
+        || { id: 'grade-middle', name: 'Grade 6 – 7 (Middle School)', studentHourlyRate: 320, teacherHourlyRate: 200 };
+    }
+    if (gradeNum >= 1 && gradeNum <= 5) {
+      return list.find(item => /\b1\s*[–-]\s*5\b|\(primary\)/i.test(item.name))
+        || { id: 'grade-primary', name: 'Grade 1 – 5 (Primary)', studentHourlyRate: 300, teacherHourlyRate: 180 };
+    }
+  }
+
+  return list.find(item => /\b10\b/.test(item.name)) || list[0];
+};
 
 let SESSIONS = [
   {
@@ -494,6 +545,7 @@ const updateSessionRecording = async (req, res) => {
 module.exports = {
   GRADES,
   SESSIONS,
+  resolveGradeTier,
   getGrades,
   createGrade,
   updateGrade,
