@@ -149,6 +149,8 @@ export default function DashboardPage() {
   const [directoryPage, setDirectoryPage] = useState(1);
   const [billingPage, setBillingPage] = useState(1);
   const [auditPage, setAuditPage] = useState(1);
+  const [scheduleStudentSearch, setScheduleStudentSearch] = useState('');
+  const [logSessionSearch, setLogSessionSearch] = useState('');
 
   const [adminInvoices, setAdminInvoices] = useState([]);
   const [adminPayroll, setAdminPayroll] = useState([]);
@@ -1391,6 +1393,69 @@ export default function DashboardPage() {
   }, [billingSubTab, invoiceSearchQuery, invoiceStatusFilter, billingMonth, billingYear]);
 
   // Shared pagination helper for 400+ scale directories, billing tables, and lecture audits
+  // Searchable student & session pickers for 250+ students and rotating teachers (Issue #63)
+  const filteredScheduleStudents = (() => {
+    const q = scheduleStudentSearch.toLowerCase().trim();
+    if (!q) return enrolledStudents;
+    return enrolledStudents.filter(s =>
+      (s.name || '').toLowerCase().includes(q) ||
+      (s.grade || '').toLowerCase().includes(q) ||
+      (s.schoolName || '').toLowerCase().includes(q) ||
+      (s.phone || '').toLowerCase().includes(q)
+    );
+  })();
+
+  const handleScheduleStudentSearchChange = (value) => {
+    setScheduleStudentSearch(value);
+    const q = value.toLowerCase().trim();
+    const matches = !q
+      ? enrolledStudents
+      : enrolledStudents.filter(s =>
+          (s.name || '').toLowerCase().includes(q) ||
+          (s.grade || '').toLowerCase().includes(q) ||
+          (s.schoolName || '').toLowerCase().includes(q) ||
+          (s.phone || '').toLowerCase().includes(q)
+        );
+    if (matches.length > 0 && !matches.some(s => s.id === selectedStudentId)) {
+      setSelectedStudentId(matches[0].id);
+      setStudentName(matches[0].name);
+    }
+  };
+
+  const filteredTeacherSessions = (() => {
+    const q = logSessionSearch.toLowerCase().trim();
+    if (!q) return sessions;
+    return sessions.filter(s =>
+      (s.studentName || '').toLowerCase().includes(q) ||
+      (s.subject || '').toLowerCase().includes(q) ||
+      (s.grade || '').toLowerCase().includes(q) ||
+      (s.date || '').toLowerCase().includes(q)
+    );
+  })();
+
+  const handleLogSessionSearchChange = (value) => {
+    setLogSessionSearch(value);
+    const q = value.toLowerCase().trim();
+    const matches = !q
+      ? sessions
+      : sessions.filter(s =>
+          (s.studentName || '').toLowerCase().includes(q) ||
+          (s.subject || '').toLowerCase().includes(q) ||
+          (s.grade || '').toLowerCase().includes(q) ||
+          (s.date || '').toLowerCase().includes(q)
+        );
+    if (matches.length > 0) {
+      if (!matches.some(s => s.id === selectedSessionId)) {
+        setSelectedSessionId(matches[0].id);
+        setLogStartTime(matches[0].startTime || '17:00');
+        setLogEndTime(matches[0].endTime || '18:15');
+      }
+      if (!matches.some(s => s.id === hwSessionId)) {
+        setHwSessionId(matches[0].id);
+      }
+    }
+  };
+
   const paginateItems = (items, page) => {
     const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
     const safePage = Math.min(Math.max(1, page), totalPages);
@@ -1969,7 +2034,55 @@ export default function DashboardPage() {
                 </span>
               </div>
 
-              <div className="overflow-x-auto">
+              {/* Mobile Cards (< md) */}
+              <div className="md:hidden space-y-3">
+                {classLogs.length === 0 ? (
+                  <div className="py-8 text-center text-xs text-slate-400">
+                    No completed classes recorded yet.
+                  </div>
+                ) : (
+                  classLogs.map((log) => (
+                    <div key={log.id} className="p-4 rounded-xl border border-slate-200/80 bg-slate-50/50 space-y-2.5 text-xs">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="font-bold text-slate-900">{log.subject}</div>
+                          <div className="text-[11px] text-slate-500">{log.date} &bull; {log.teacherName}</div>
+                        </div>
+                        <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full shrink-0 ${
+                          log.billableHours > 0
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : 'bg-red-50 text-red-700 border border-red-200'
+                        }`}>
+                          {log.billableHours > 0 ? `${log.billableHours} hrs` : '0.0 hrs (Absent)'}
+                        </span>
+                      </div>
+                      {log.topicsCovered && (
+                        <div className="text-[11px] text-slate-600">{log.topicsCovered}</div>
+                      )}
+                      {log.homeworkAssigned && (
+                        <div className="text-[11px] text-slate-500 italic">Homework: {log.homeworkAssigned}</div>
+                      )}
+                      {log.recordingUrl && (
+                        <div className="pt-1">
+                          <a
+                            href={log.recordingUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="w-full px-3 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold inline-flex items-center justify-center gap-1.5 border border-indigo-200"
+                          >
+                            <Play className="w-3.5 h-3.5 fill-indigo-600 text-indigo-600" />
+                            <span>Watch Recording</span>
+                            <ExternalLink className="w-3 h-3 text-indigo-500" />
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Desktop Table (>= md) */}
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-left text-sm">
                   <thead>
                     <tr className="border-b border-slate-200 text-xs uppercase tracking-wider text-slate-400">
@@ -2372,7 +2485,63 @@ export default function DashboardPage() {
                     </span>
                   </div>
 
-                  <div className="overflow-x-auto">
+                  {/* Mobile Itemized Breakdown Cards (< md) */}
+                  <div className="md:hidden space-y-2.5">
+                    {classLogs.length === 0 ? (
+                      <div className="py-8 text-center text-slate-400 text-xs italic">
+                        No completed class records found for this billing cycle.
+                      </div>
+                    ) : (
+                      classLogs.map((log) => {
+                        const durHours = log.billableHours || 0;
+                        const rate = user?.hourlyRate || 400;
+                        const lineTotal = Math.round(durHours * rate);
+                        return (
+                          <div key={log.id} className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2 text-xs">
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <div className="font-bold text-slate-900">{log.subject}</div>
+                                <div className="text-[11px] text-slate-500">{log.date} &bull; {log.teacherName}</div>
+                              </div>
+                              <div className="text-right shrink-0">
+                                <div className="font-extrabold text-slate-900">
+                                  {durHours > 0 ? `₹${lineTotal.toLocaleString('en-IN')}` : '₹0'}
+                                </div>
+                                <div className="text-[10px] text-slate-500">
+                                  {durHours > 0 ? `${durHours} hrs × ₹${rate}` : '0.0 hrs'}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-[11px] text-slate-500 line-clamp-1">{log.topicsCovered || '1-on-1 Class'}</span>
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                                durHours > 0
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                  : 'bg-red-50 text-red-700 border border-red-200'
+                              }`}>
+                                {durHours > 0 ? 'Confirmed Present' : 'Absent (No charge)'}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                    <div className="p-3.5 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-between text-xs">
+                      <div>
+                        <span className="font-bold text-slate-700 block">Total Billed Hours</span>
+                        <span className="font-extrabold text-indigo-700">{Number((monthlyHours ?? 0).toFixed(2))} hrs</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="font-bold text-slate-700 block">Net Payable</span>
+                        <span className="font-black text-sm text-emerald-600">
+                          ₹{Math.round(Number((monthlyHours ?? 0).toFixed(2)) * (user.hourlyRate || 400)).toLocaleString('en-IN')}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Desktop Table (>= md) */}
+                  <div className="hidden md:block overflow-x-auto">
                     <table className="w-full text-left text-sm">
                       <thead>
                         <tr className="border-b border-slate-200 text-xs uppercase tracking-wider text-slate-400">
@@ -3236,7 +3405,21 @@ export default function DashboardPage() {
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-1">Select Scheduled Class</label>
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <label className="text-xs font-bold text-slate-700">Select Scheduled Class</label>
+                        {sessions.length > 0 && (
+                          <span className="text-[10px] text-slate-400 font-semibold">
+                            {filteredTeacherSessions.length} of {sessions.length}
+                          </span>
+                        )}
+                      </div>
+                      <input
+                        type="text"
+                        value={logSessionSearch}
+                        onChange={(e) => handleLogSessionSearchChange(e.target.value)}
+                        placeholder="Search student, subject, or date..."
+                        className="w-full px-3 py-1.5 mb-1.5 rounded-xl border border-slate-200 text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      />
                       <select 
                         value={selectedSessionId}
                         onChange={(e) => {
@@ -3250,11 +3433,15 @@ export default function DashboardPage() {
                         }}
                         className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold bg-white"
                       >
-                        {sessions.map(s => (
-                          <option key={s.id} value={s.id}>
-                            {s.studentName} ({s.subject}) &bull; {s.date}
-                          </option>
-                        ))}
+                        {filteredTeacherSessions.length === 0 ? (
+                          <option value="">No matching scheduled classes</option>
+                        ) : (
+                          filteredTeacherSessions.map(s => (
+                            <option key={s.id} value={s.id}>
+                              {s.studentName} ({s.subject}) &bull; {s.date}
+                            </option>
+                          ))
+                        )}
                       </select>
                     </div>
 
@@ -3447,7 +3634,35 @@ export default function DashboardPage() {
                 Your Class Logs History
               </h3>
 
-              <div className="overflow-x-auto">
+              {/* Mobile Cards (< md) */}
+              <div className="md:hidden space-y-2.5">
+                {classLogs.length === 0 ? (
+                  <div className="py-8 text-center text-xs text-slate-400">
+                    No class logs recorded yet.
+                  </div>
+                ) : (
+                  classLogs.map((log) => (
+                    <div key={log.id} className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-1.5 text-xs">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="font-bold text-slate-900">{log.studentName}</div>
+                          <div className="text-[11px] text-slate-500">{log.date} &bull; {log.subject}</div>
+                        </div>
+                        <span className="font-extrabold text-indigo-600 shrink-0">{log.billableHours} hrs</span>
+                      </div>
+                      {log.topicsCovered && (
+                        <div className="text-[11px] text-slate-500 line-clamp-1">{log.topicsCovered}</div>
+                      )}
+                      <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        Verified & Accrued
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Desktop Table (>= md) */}
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-left text-sm">
                   <thead>
                     <tr className="border-b border-slate-200 text-xs uppercase tracking-wider text-slate-400">
@@ -3528,16 +3743,30 @@ export default function DashboardPage() {
                     <form onSubmit={handleTeacherCreateHomework} className="space-y-4">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                          <label className="text-xs font-bold text-slate-700 block mb-1">Linked 1-on-1 Class Session</label>
+                          <div className="flex items-center justify-between gap-2 mb-1">
+                            <label className="text-xs font-bold text-slate-700">Linked 1-on-1 Class Session</label>
+                            {sessions.length > 0 && (
+                              <span className="text-[10px] text-slate-400 font-semibold">
+                                {filteredTeacherSessions.length} of {sessions.length}
+                              </span>
+                            )}
+                          </div>
+                          <input
+                            type="text"
+                            value={logSessionSearch}
+                            onChange={(e) => handleLogSessionSearchChange(e.target.value)}
+                            placeholder="Filter session by student, subject, or date..."
+                            className="w-full px-3 py-1.5 mb-1.5 rounded-xl border border-slate-200 text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          />
                           <select
                             value={hwSessionId}
                             onChange={(e) => setHwSessionId(e.target.value)}
                             className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs bg-slate-50 font-medium focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
                           >
-                            {sessions.length === 0 ? (
+                            {filteredTeacherSessions.length === 0 ? (
                               <option value="">General Assignment (Aryan Sharma)</option>
                             ) : (
-                              sessions.map(s => (
+                              filteredTeacherSessions.map(s => (
                                 <option key={s.id} value={s.id}>
                                   {s.studentName} &bull; {s.subject} ({s.date})
                                 </option>
@@ -4280,14 +4509,50 @@ export default function DashboardPage() {
 
               {/* TABLE 1: STUDENTS DIRECTORY */}
               {adminDirectoryTab === 'STUDENTS' && (
-                <div className="overflow-x-auto">
+                <div>
                   {filteredDirectoryStudents.length === 0 ? (
                     <div className="text-center py-10 bg-slate-50/50 rounded-xl border border-dashed border-slate-200 text-slate-400 text-xs">
                       No matching students found in directory.
                     </div>
                   ) : (
                     <>
-                    <table className="w-full text-left text-sm">
+                      {/* Mobile Cards (< md) */}
+                      <div className="md:hidden space-y-2.5">
+                        {paginateItems(filteredDirectoryStudents, directoryPage).pagedItems.map((student) => (
+                          <div key={student.id} className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2 text-xs">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <div className="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs shrink-0">
+                                  {student.name.charAt(0)}
+                                </div>
+                                <div className="min-w-0">
+                                  <span className="font-bold text-slate-900 block truncate">{student.name}</span>
+                                  <span className="text-[11px] text-slate-500 block">{student.grade} &bull; ₹{student.hourlyRate}/hr</span>
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => handleDeleteDirectoryUser(student.id, student.name)}
+                                title="Remove student from directory"
+                                className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors shrink-0"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                            <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-600">
+                              <span>{student.phone} &bull; Parent: {student.parentName || 'N/A'}</span>
+                              <span className="font-bold text-emerald-700">{student.attendedHours} hrs</span>
+                            </div>
+                            <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-200/70">
+                              <span className="text-[11px] text-slate-500 truncate">{student.schoolName || 'School on file'}</span>
+                              <span className="font-extrabold text-slate-900 shrink-0">₹{student.totalFeeDue.toLocaleString('en-IN')}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Desktop Table (>= md) */}
+                      <div className="hidden md:block overflow-x-auto">
+                        <table className="w-full text-left text-sm">
                       <thead>
                         <tr className="border-b border-slate-200 text-[11px] uppercase tracking-wider text-slate-400">
                           <th className="py-2.5">Student & School</th>
@@ -4380,6 +4645,7 @@ export default function DashboardPage() {
                         ))}
                       </tbody>
                     </table>
+                      </div>
                     {renderPaginationBar(paginateItems(filteredDirectoryStudents, directoryPage), setDirectoryPage)}
                   </>
                   )}
@@ -4388,14 +4654,50 @@ export default function DashboardPage() {
 
               {/* TABLE 2: TEACHERS DIRECTORY */}
               {adminDirectoryTab === 'TEACHERS' && (
-                <div className="overflow-x-auto">
+                <div>
                   {filteredDirectoryTeachers.length === 0 ? (
                     <div className="text-center py-10 bg-slate-50/50 rounded-xl border border-dashed border-slate-200 text-slate-400 text-xs">
                       No matching teachers found in directory.
                     </div>
                   ) : (
                     <>
-                    <table className="w-full text-left text-sm">
+                      {/* Mobile Cards (< md) */}
+                      <div className="md:hidden space-y-2.5">
+                        {paginateItems(filteredDirectoryTeachers, directoryPage).pagedItems.map((teacher) => (
+                          <div key={teacher.id} className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2 text-xs">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <div className="w-7 h-7 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-xs shrink-0">
+                                  {teacher.name.charAt(0)}
+                                </div>
+                                <div className="min-w-0">
+                                  <span className="font-bold text-slate-900 block truncate">{teacher.name}</span>
+                                  <span className="text-[11px] text-purple-700 font-semibold block">{teacher.subject}</span>
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => handleDeleteDirectoryUser(teacher.id, teacher.name)}
+                                title="Remove teacher from directory"
+                                className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors shrink-0"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                            <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-600">
+                              <span>{teacher.phone}</span>
+                              <span className="font-bold text-purple-700">{teacher.totalHoursTaken} hrs ({teacher.classesTaken} classes)</span>
+                            </div>
+                            <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-200/70">
+                              <span className="text-[11px] text-slate-500">{teacher.complianceRate ?? 100}% Proof</span>
+                              <span className="font-extrabold text-slate-900">₹{teacher.accruedPayout.toLocaleString('en-IN')}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Desktop Table (>= md) */}
+                      <div className="hidden md:block overflow-x-auto">
+                        <table className="w-full text-left text-sm">
                       <thead>
                         <tr className="border-b border-slate-200 text-[11px] uppercase tracking-wider text-slate-400">
                           <th className="py-2.5">Teacher & Department</th>
@@ -4474,6 +4776,7 @@ export default function DashboardPage() {
                         ))}
                       </tbody>
                     </table>
+                      </div>
                     {renderPaginationBar(paginateItems(filteredDirectoryTeachers, directoryPage), setDirectoryPage)}
                   </>
                   )}
@@ -4653,15 +4956,15 @@ export default function DashboardPage() {
                       </div>
 
                       {/* Filter and Search Bar */}
-                      <div className="flex flex-wrap items-center gap-2.5">
-                        <div className="relative">
+                      <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
+                        <div className="relative w-full sm:w-52">
                           <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                           <input 
                             type="text" 
                             placeholder="Search teacher, student, topic..." 
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="pl-8 pr-3 py-1.5 rounded-xl border border-slate-200 text-xs w-52 bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                            className="pl-8 pr-3 py-1.5 rounded-xl border border-slate-200 text-xs w-full bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
                           />
                         </div>
 
@@ -4691,7 +4994,58 @@ export default function DashboardPage() {
                       </div>
                     </div>
 
-                    <div className="overflow-x-auto">
+                    {/* Mobile Cards (< md) */}
+                    <div className="md:hidden space-y-2.5">
+                      {filteredLogs.length === 0 ? (
+                        <div className="py-8 text-center text-xs text-slate-400">
+                          No lectures match your search and filter criteria.
+                        </div>
+                      ) : (
+                        paginateItems(filteredLogs, auditPage).pagedItems.map((log) => {
+                          const recUrl = log.recordingUrl || sessions.find(s => s.id === log.sessionId)?.recordingUrl;
+                          const sessionObj = sessions.find(s => s.id === log.sessionId) || { id: log.sessionId, recordingUrl: recUrl };
+                          return (
+                            <div key={log.id} className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2 text-xs">
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <div className="font-bold text-slate-900">{log.studentName} &bull; {log.subject}</div>
+                                  <div className="text-[11px] text-slate-500">{log.teacherName} &bull; {log.date}</div>
+                                </div>
+                                <span className="font-bold text-indigo-600 shrink-0">{log.billableHours} hrs</span>
+                              </div>
+                              <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-200/70">
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                                  recUrl ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'
+                                }`}>
+                                  {recUrl ? 'Verified Video' : 'Missing Proof'}
+                                </span>
+                                {recUrl ? (
+                                  <a
+                                    href={recUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="px-2.5 py-1 rounded-lg text-[11px] font-bold text-white bg-indigo-600"
+                                  >
+                                    Audit ↗
+                                  </a>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenEditRecording(sessionObj)}
+                                    className="px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-700 border border-slate-200 bg-white"
+                                  >
+                                    + Attach Link
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+
+                    {/* Desktop Table (>= md) */}
+                    <div className="hidden md:block overflow-x-auto">
                       <table className="w-full text-left text-sm">
                         <thead>
                           <tr className="border-b border-slate-200 text-xs uppercase tracking-wider text-slate-400">
@@ -4788,8 +5142,8 @@ export default function DashboardPage() {
                           )}
                         </tbody>
                       </table>
-                      {renderPaginationBar(paginateItems(filteredLogs, auditPage), setAuditPage)}
                     </div>
+                    {renderPaginationBar(paginateItems(filteredLogs, auditPage), setAuditPage)}
                   </div>
                 </div>
               );
@@ -4936,14 +5290,14 @@ export default function DashboardPage() {
 
                     {/* Filter and Search Bar */}
                     <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-                      <div className="relative">
+                      <div className="relative w-full sm:w-60">
                         <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                         <input
                           type="text"
                           placeholder={billingSubTab === 'INVOICES' ? 'Search student, parent, invoice...' : 'Search teacher or subject...'}
                           value={invoiceSearchQuery}
                           onChange={(e) => setInvoiceSearchQuery(e.target.value)}
-                          className="pl-8 pr-3 py-1.5 rounded-xl border border-slate-200 text-xs w-60 bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          className="pl-8 pr-3 py-1.5 rounded-xl border border-slate-200 text-xs w-full bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
                         />
                       </div>
 
@@ -4962,13 +5316,52 @@ export default function DashboardPage() {
                       )}
                     </div>
 
-                    {/* Content: Student Invoices Table */}
+                    {/* Content: Student Invoices */}
                     {billingSubTab === 'INVOICES' && (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left text-sm">
-                          <thead>
-                            <tr className="border-b border-slate-200 text-xs uppercase tracking-wider text-slate-400">
-                              <th className="py-2.5">Invoice #</th>
+                      <>
+                        {/* Mobile Cards (< md) */}
+                        <div className="md:hidden space-y-2.5">
+                          {filteredInvoices.length === 0 ? (
+                            <div className="py-8 text-center text-xs text-slate-400">
+                              No invoices match your search or filter.
+                            </div>
+                          ) : (
+                            paginateItems(filteredInvoices, billingPage).pagedItems.map((inv) => (
+                              <div key={inv.id} className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2 text-xs">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div>
+                                    <div className="font-bold text-slate-900">{inv.studentName}</div>
+                                    <div className="text-[11px] text-slate-500 font-mono">{inv.invoiceNumber} &bull; {inv.grade}</div>
+                                  </div>
+                                  <span className="font-extrabold text-slate-900 shrink-0">₹{inv.totalAmount.toLocaleString('en-IN')}</span>
+                                </div>
+                                <div className="flex items-center justify-between gap-2 text-[11px] text-slate-600">
+                                  <span>{inv.attendedHours} hrs &times; ₹{inv.hourlyRate}/hr</span>
+                                  <span className={`font-bold px-2 py-0.5 rounded-full border text-[10px] ${
+                                    inv.status === 'PAID' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'
+                                  }`}>
+                                    {inv.status === 'PAID' ? 'Paid' : 'Unpaid / Due'}
+                                  </span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => { setSelectedInvoiceModal(inv); setIsInvoiceModalOpen(true); }}
+                                  className="w-full py-1.5 rounded-xl text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 flex items-center justify-center gap-1"
+                                >
+                                  <FileText className="w-3.5 h-3.5" />
+                                  <span>View Invoice</span>
+                                </button>
+                              </div>
+                            ))
+                          )}
+                        </div>
+
+                        {/* Desktop Table (>= md) */}
+                        <div className="hidden md:block overflow-x-auto">
+                          <table className="w-full text-left text-sm">
+                            <thead>
+                              <tr className="border-b border-slate-200 text-xs uppercase tracking-wider text-slate-400">
+                                <th className="py-2.5">Invoice #</th>
                               <th className="py-2.5">Student &amp; Grade</th>
                               <th className="py-2.5">Parent Contact</th>
                               <th className="py-2.5">Attended Hours</th>
@@ -5040,17 +5433,47 @@ export default function DashboardPage() {
                             )}
                           </tbody>
                         </table>
-                        {renderPaginationBar(paginateItems(filteredInvoices, billingPage), setBillingPage)}
                       </div>
+                      {renderPaginationBar(paginateItems(filteredInvoices, billingPage), setBillingPage)}
+                    </>
                     )}
 
-                    {/* Content: Teacher Payroll Table */}
+                    {/* Content: Teacher Payroll */}
                     {billingSubTab === 'PAYROLL' && (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left text-sm">
-                          <thead>
-                            <tr className="border-b border-slate-200 text-xs uppercase tracking-wider text-slate-400">
-                              <th className="py-2.5">Payroll #</th>
+                      <>
+                        {/* Mobile Cards (< md) */}
+                        <div className="md:hidden space-y-2.5">
+                          {filteredPayroll.length === 0 ? (
+                            <div className="py-8 text-center text-xs text-slate-400">
+                              No teacher payroll records match your search.
+                            </div>
+                          ) : (
+                            paginateItems(filteredPayroll, billingPage).pagedItems.map((pay) => (
+                              <div key={pay.id} className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2 text-xs">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div>
+                                    <div className="font-bold text-slate-900">{pay.teacherName}</div>
+                                    <div className="text-[11px] text-slate-500 font-mono">{pay.payrollNumber} &bull; {pay.subject}</div>
+                                  </div>
+                                  <span className="font-extrabold text-emerald-600 shrink-0">₹{pay.totalPayoutAmount.toLocaleString('en-IN')}</span>
+                                </div>
+                                <div className="flex items-center justify-between gap-2 text-[11px] text-slate-600">
+                                  <span>{pay.classesCount} classes &bull; {pay.taughtHours} hrs</span>
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                                    Calculated
+                                  </span>
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+
+                        {/* Desktop Table (>= md) */}
+                        <div className="hidden md:block overflow-x-auto">
+                          <table className="w-full text-left text-sm">
+                            <thead>
+                              <tr className="border-b border-slate-200 text-xs uppercase tracking-wider text-slate-400">
+                                <th className="py-2.5">Payroll #</th>
                               <th className="py-2.5">Teacher / Faculty</th>
                               <th className="py-2.5">Subject Department</th>
                               <th className="py-2.5">Classes Delivered</th>
@@ -5105,8 +5528,9 @@ export default function DashboardPage() {
                             )}
                           </tbody>
                         </table>
-                        {renderPaginationBar(paginateItems(filteredPayroll, billingPage), setBillingPage)}
                       </div>
+                      {renderPaginationBar(paginateItems(filteredPayroll, billingPage), setBillingPage)}
+                    </>
                     )}
                   </div>
                 </div>
@@ -5400,7 +5824,7 @@ export default function DashboardPage() {
       {/* 📄 Modal: Official Academy Fee Receipt (Student Portal) */}
       {isReceiptModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 border border-slate-200 shadow-2xl relative">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 border border-slate-200 shadow-2xl relative max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center">
@@ -5523,7 +5947,7 @@ export default function DashboardPage() {
       {/* 📄 Official Itemized Invoice Modal for Admin */}
       {isInvoiceModalOpen && selectedInvoiceModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 border border-slate-200 shadow-2xl relative">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 border border-slate-200 shadow-2xl relative max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center">
@@ -5629,7 +6053,7 @@ export default function DashboardPage() {
       {/* Modal: Schedule 1-on-1 Class */}
       {isScheduleModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 border border-slate-200 shadow-2xl relative">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 border border-slate-200 shadow-2xl relative max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xl font-bold text-slate-900">Schedule 1-on-1 Class</h3>
               <button onClick={() => setIsScheduleModalOpen(false)} className="text-slate-400 hover:text-slate-600">
@@ -5639,7 +6063,14 @@ export default function DashboardPage() {
 
             <form onSubmit={handleCreateSession} className="space-y-4">
               <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Select Student</label>
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <label className="text-xs font-bold text-slate-700">Select Student</label>
+                  {enrolledStudents.length > 0 && (
+                    <span className="text-[10px] font-semibold text-slate-400">
+                      {filteredScheduleStudents.length} of {enrolledStudents.length} students
+                    </span>
+                  )}
+                </div>
                 {enrolledStudents.length === 0 ? (
                   <input 
                     type="text"
@@ -5650,26 +6081,42 @@ export default function DashboardPage() {
                     className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm bg-white"
                   />
                 ) : (
-                  <select 
-                    value={selectedStudentId} 
-                    onChange={(e) => {
-                      const sid = e.target.value;
-                      setSelectedStudentId(sid);
-                      const s = enrolledStudents.find(item => item.id === sid || item.userId === sid);
-                      if (s) setStudentName(s.name);
-                    }}
-                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm bg-white font-medium"
-                  >
-                    {enrolledStudents.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name} ({s.grade})
-                      </option>
-                    ))}
-                  </select>
+                  <div className="space-y-2">
+                    <div className="relative">
+                      <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        value={scheduleStudentSearch}
+                        onChange={(e) => handleScheduleStudentSearchChange(e.target.value)}
+                        placeholder="Search by student name, grade, school, or phone..."
+                        className="w-full pl-8 pr-3 py-2 rounded-xl border border-slate-200 text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      />
+                    </div>
+                    <select 
+                      value={selectedStudentId} 
+                      onChange={(e) => {
+                        const sid = e.target.value;
+                        setSelectedStudentId(sid);
+                        const s = enrolledStudents.find(item => item.id === sid || item.userId === sid);
+                        if (s) setStudentName(s.name);
+                      }}
+                      className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm bg-white font-medium"
+                    >
+                      {filteredScheduleStudents.length === 0 ? (
+                        <option value="">No matching students found</option>
+                      ) : (
+                        filteredScheduleStudents.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.name} ({s.grade})
+                          </option>
+                        ))
+                      )}
+                    </select>
+                  </div>
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-bold text-slate-700 block mb-1">Subject</label>
                   <input 
@@ -5699,7 +6146,7 @@ export default function DashboardPage() {
                 </div>
               )}
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="text-xs font-bold text-slate-700 block mb-1">Date</label>
                   <input 
@@ -5777,7 +6224,7 @@ export default function DashboardPage() {
       {/* Modal: Add Grade Rate Card */}
       {isGradeModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 border border-slate-200 shadow-2xl relative">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 border border-slate-200 shadow-2xl relative max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xl font-bold text-slate-900">
                 {editingGradeId ? 'Update Grade Rate Card' : 'Add Grade Rate Card'}
@@ -5800,7 +6247,7 @@ export default function DashboardPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-bold text-slate-700 block mb-1">Student Fee Rate (₹ per hour)</label>
                   <input 
@@ -5850,7 +6297,7 @@ export default function DashboardPage() {
       {/* 💳 RAZORPAY TEST ACCOUNT CHECKOUT MODAL (STUDENT ROLE DEMO) */}
       {isRazorpayModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white rounded-3xl max-w-md w-full border border-slate-200 shadow-2xl overflow-hidden relative">
+          <div className="bg-white rounded-3xl max-w-md w-full border border-slate-200 shadow-2xl overflow-hidden relative max-h-[90vh] overflow-y-auto">
             
             {/* Razorpay Modal Brand Header */}
             <div className="bg-[#0c2340] text-white p-5 flex items-center justify-between">
@@ -6244,7 +6691,7 @@ export default function DashboardPage() {
           onClick={() => setIsEditRecordingModalOpen(false)}
         >
           <div 
-            className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-lg w-full p-6 space-y-4"
+            className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-lg w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
